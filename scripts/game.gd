@@ -1,0 +1,265 @@
+extends Node3D
+## Startet die Welt: richtet die Welt-Formel ein, sucht einen Startplatz für das Auto
+## und lässt es erst losfahren, wenn das Gelände drumherum geladen ist.
+
+## Name der App im Fenstertitel
+const APP_TITLE := "Car Driving World"
+
+## Die Welt-Formel mit allen Einstellungen (Seed, Bergeshöhe, ...)
+@export var world_gen: WorldGen
+@export var terrain: TerrainManager
+@export var horizon: HorizonRing
+@export var car: VehicleBody3D
+@export var loading_screen: Control
+@export var debug_tools: DebugTools
+@export var day_night: DayNight
+@export var garage: Garage
+@export var map_tiles: MapTiles
+@export var roads: RoadNetwork
+@export var water: WaterManager
+@export var grass: GrassManager
+@export var weather: Weather
+## Fenster „Was ist neu“ (einmal pro Version beim Start)
+@export var whats_new: WhatsNew
+
+var world_is_ready: bool = false
+var _car_on_road: bool = false
+var _start_point: Vector2 = Vector2.ZERO
+var _start_heading: float = 0.0
+var _place_timer: float = 0.0
+var _last_car_position := Vector3.ZERO
+var _started: bool = false
+## Loading watchdog: after this many seconds the car is released as soon as the tile under it has collision,
+## even if the full area or the horizon ring is still not ready (so loading can never hang forever)
+const LOAD_TIMEOUT: float = 45.0
+var _load_time: float = 0.0
+var _load_warned: bool = false
+## Normal terrain limits (the terrain is loaded faster behind the loading screen, see _boost_loading)
+var _normal_jobs: int = 6
+var _normal_uploads: int = 2
+
+
+func _ready() -> void:
+	# Strecken-Modus (Osaka Nanko) direkt starten: -- --track=osaka
+	# Sonst geht es wie immer in der endlosen Welt los; im Pausemenü lässt sich wechseln.
+	if "--track=osaka" in OS.get_cmdline_user_args():
+		# Die anderen Knoten dieser Szene dürfen bis zum Wechsel nichts mehr rechnen,
+		# sonst greifen sie auf die nie gestarteten Straßen zu (Fehler im Log).
+		set_process(false)
+		set_physics_process(false)
+		for node in get_children():
+			node.process_mode = Node.PROCESS_MODE_DISABLED
+		# Erst nach dem Ende von _ready wechseln: mitten im Aufbau der Szene darf
+		# Godot keine Knoten entfernen.
+		get_tree().call_deferred("change_scene_to_file", "res://scenes/track_world.tscn")
+		return
+	# Name der App (der Projektname „Endlose Welt“ bleibt, nach ihm heißt der Speicherordner user://)
+	get_window().title = APP_TITLE
+	world_gen.setup()
+	var start_point := Vector2.ZERO
+	var heading := 0.0
+	if debug_tools.has_start_position:
+		start_point = debug_tools.start_position
+		heading = debug_tools.start_heading
+	if debug_tools.time_of_day >= 0.0:
+		day_night.time_of_day = debug_tools.time_of_day
+		day_night.paused = true
+	if debug_tools.volumetric_fog:
+		day_night.set_volumetric_fog(true)
+	# Tests fahren immer mit dem angegebenen Auto oder dem ersten (nicht dem gespeicherten)
+	if debug_tools.car_id != "":
+		car.apply_profile(load("res://cars/%s.tres" % debug_tools.car_id))
+	elif debug_tools.is_active() and garage and not garage.cars.is_empty():
+		car.apply_profile(garage.cars[0])
+	_start_point = start_point
+	_start_heading = heading
+	car.freeze = true
+	# Vorläufiger Platz, bis die Straßen in der Nähe berechnet sind
+	car.teleport(find_start(start_point, heading), true)
+	roads.start(world_gen, car)
+	if map_tiles:
+		map_tiles.world_gen = world_gen
+	if weather:
+		weather.world_gen = world_gen
+		# Tests: festes Wetter (Standard klar, Sommer), damit Bilder und Messungen vergleichbar sind
+		if debug_tools.is_active():
+			weather.set_debug(debug_tools.weather_id, debug_tools.season_id)
+	# Vergleichsmessungen (DebugTools): ohne nahe Detail-Bäume bzw. ohne Impostoren
+	if OS.get_cmdline_user_args().has("--nonear"):
+		terrain.near_tree_distance = 0.0
+	if OS.get_cmdline_user_args().has("--noimpostor"):
+		terrain.use_impostors = false
+	_normal_jobs = terrain.max_parallel_jobs
+	_normal_uploads = terrain.max_uploads_per_frame
+	_boost_loading()
+	terrain.start(world_gen, car, roads)
+	horizon.start(world_gen, car, terrain)
+	water.start(world_gen, car, roads)
+	grass.start(world_gen, car, terrain, roads)
+	loading_screen.visible = true
+	# Shader, die erst später gebraucht werden (Regen, Tunnel, Übergänge …), hinter dem Ladebildschirm übersetzen
+	if not OS.get_cmdline_user_args().has("--nowarmup"):
+		var warmup := ShaderWarmup.new()
+		add_child(warmup)
+		var extra: Array[Material] = [terrain.foliage_material, roads.road_material]
+		warmup.start(get_viewport().get_camera_3d(), extra)
+	# Die Garage öffnet sich, sobald die Welt geladen ist (siehe _process)
+
+
+func _process(delta: float) -> void:
+	var started := Time.get_ticks_usec()
+	_timed_process(delta)
+	FrameCosts.add("Spiel", started)
+
+
+func _timed_process(delta: float) -> void:
+	if world_is_ready:
+		_check_for_jump()
+		return
+	_update_loading()
+	_load_time += delta
+	if not _car_on_road:
+		_place_car_on_road(delta)
+		return
+	if terrain.is_area_ready(car.global_position) and horizon.is_ready_at(car.global_position):
+		_finish_loading()
+	elif _load_time > LOAD_TIMEOUT:
+		# Watchdog: Loading takes unusually long. Say what is missing, and let the car go as soon as there is ground under it.
+		if not _load_warned:
+			_load_warned = true
+			push_warning("Loading takes very long (%.0f s): terrain area %.0f %%, horizon ring ready: %s" % [_load_time,
+				terrain.area_progress(car.global_position) * 100.0, str(horizon.is_ready_at(car.global_position))])
+		if terrain.is_ground_ready_at(car.global_position):
+			_finish_loading()
+
+
+## Loading is done: hide the loading screen, release the car and (at the first start) open the garage
+func _finish_loading() -> void:
+	world_is_ready = true
+	_load_time = 0.0
+	_load_warned = false
+	_restore_loading_limits()
+	var screen := loading_screen as LoadingScreen
+	if screen:
+		screen.finish(not debug_tools.is_active())
+	else:
+		loading_screen.visible = false
+	car.freeze = false
+	_last_car_position = car.global_position
+	# Test tools only start the first time (not after every jump).
+	# When the game starts normally (no tests), the garage opens first.
+	if not _started:
+		_started = true
+		debug_tools.on_world_ready(self)
+		if garage and not debug_tools.is_active():
+			garage.open()
+		if whats_new:
+			whats_new.show_if_new()
+
+
+## Behind the loading screen nothing else needs the CPU: build more terrain tiles at once and insert more per frame
+func _boost_loading() -> void:
+	terrain.max_parallel_jobs = clampi(OS.get_processor_count(), _normal_jobs, 12)
+	terrain.max_uploads_per_frame = maxi(_normal_uploads, 6)
+
+
+func _restore_loading_limits() -> void:
+	terrain.max_parallel_jobs = _normal_jobs
+	terrain.max_uploads_per_frame = _normal_uploads
+
+
+## Fortschrittsbalken im Ladebildschirm: erst die Straßen rund um den Start, dann die Gelände-Kacheln am
+## Auto, dann die Fernsicht (Horizont-Ring); das Automodell lädt nebenher
+func _update_loading() -> void:
+	var screen := loading_screen as LoadingScreen
+	if screen == null:
+		return
+	var road := 1.0 if _car_on_road else roads.area_progress(_start_point, 1200.0)
+	var ground := terrain.area_progress(car.global_position) if _car_on_road else 0.0
+	var far := 1.0 if _car_on_road and horizon.is_ready_at(car.global_position) else 0.0
+	var model := car.get_node_or_null("Model") as CarModel
+	var status := "Planning roads …"
+	if _car_on_road:
+		status = "Generating terrain, trees and water …"
+		if ground >= 1.0:
+			status = "Calculating distant view …"
+	if model and model.is_loading() and road >= 1.0:
+		status = "Loading car …"
+	screen.set_progress(road * 0.4 + ground * 0.45 + far * 0.15, status)
+
+
+## Ist das Auto gerade weit gesprungen (Reset, Teleport) und fehlt dort noch Gelände?
+## Dann kurz den Ladebildschirm zeigen, bis es da ist (sonst sähe man Löcher und den
+## Horizont-Ring, und das Auto könnte durch den Boden fallen).
+func _check_for_jump() -> void:
+	var here := car.global_position
+	var jumped := here.distance_to(_last_car_position) > 50.0
+	_last_car_position = here
+	if not jumped:
+		return
+	if terrain.is_area_ready(here) and horizon.is_ready_at(here):
+		return
+	world_is_ready = false
+	_car_on_road = true
+	_load_time = 0.0
+	_boost_loading()
+	car.freeze = true
+	loading_screen.visible = true
+
+
+## Weiter Sprung (z. B. Teleport im Test): wie beim Start den Ladebildschirm zeigen und
+## warten, bis Straßen und Gelände an der neuen Stelle da sind
+func jump_to(point: Vector2) -> void:
+	world_is_ready = false
+	_car_on_road = false
+	_place_timer = 0.0
+	_load_time = 0.0
+	_boost_loading()
+	_start_point = point
+	car.freeze = true
+	car.teleport(find_start(point, _start_heading), true)
+	loading_screen.visible = true
+
+
+## Setzt das Auto auf die nächste Straße, sobald die Straßen in der Nähe berechnet sind
+func _place_car_on_road(delta: float) -> void:
+	_place_timer += delta
+	if not roads.is_area_ready(_start_point, 1200.0):
+		return
+	var forward := Vector3(sin(deg_to_rad(_start_heading)), 0.0, cos(deg_to_rad(_start_heading)))
+	var result := roads.nearest_road_transform(Vector3(_start_point.x, 0.0, _start_point.y), forward,
+		debug_tools.on_highway)
+	if result["found"]:
+		car.teleport(result["transform"], true)
+		_car_on_road = true
+	elif _place_timer > 15.0:
+		# Notfall: weit und breit keine Straße, dann eben im Gelände starten
+		push_warning("No road found nearby, the car starts on open terrain.")
+		_car_on_road = true
+
+
+## Geländehöhe an einer Stelle (ohne Straßen)
+func ground_height(x: float, z: float) -> float:
+	var lakes: Array = world_gen.lakes_near(Rect2(x - 1.0, z - 1.0, 2.0, 2.0))
+	return world_gen.terrain_height(x, z, lakes)
+
+
+## Sucht in der Nähe eine flache, trockene Stelle für das Auto
+func find_start(near: Vector2, heading_degrees: float) -> Transform3D:
+	var best := near
+	var best_score := INF
+	for iz in range(-8, 9):
+		for ix in range(-8, 9):
+			var p := near + Vector2(ix, iz) * 40.0
+			var lakes: Array = world_gen.lakes_near(Rect2(p.x - 1.0, p.y - 1.0, 2.0, 2.0))
+			if world_gen.water_level_at(p.x, p.y, lakes) > WorldGen.NO_WATER:
+				continue
+			var h := world_gen.terrain_height(p.x, p.y, lakes)
+			var bumpiness := absf(world_gen.terrain_height(p.x + 4.0, p.y, lakes) - h) \
+				+ absf(world_gen.terrain_height(p.x, p.y + 4.0, lakes) - h)
+			var score := bumpiness * 10.0 + p.distance_to(near) * 0.01
+			if score < best_score:
+				best_score = score
+				best = p
+	var start_position := Vector3(best.x, ground_height(best.x, best.y) + 1.2, best.y)
+	return Transform3D(Basis(Vector3.UP, deg_to_rad(heading_degrees)), start_position)

@@ -1,0 +1,34 @@
+# Godot 4 – automatisch erzeugte Dateien
+.godot/
+/android/
+
+# Export-Zugangsdaten nie hochladen
+export_credentials.cfg
+
+# Builds
+/build/
+/exports/
+
+# Windows Kram
+Thumbs.db
+desktop.ini
+
+# Persönliche Claude-Code-Einstellungen
+.claude/settings.local.json
+
+# Screenshots vom Screenshot-Werkzeug
+/screenshots/
+
+# Automodelle: Ihre Lizenzen (CC BY, CC BY-NC-ND, CC BY-NC-SA) erlauben keine bzw. nur
+# eingeschränkte Weitergabe, deshalb bleiben alle Modelle aus dem Repo.
+# Download-Anleitung: assets/models/README.md
+/assets/models/*
+!/assets/models/README.md
+!/assets/models/.gitkeep
+
+# Eigene Prompt-Sammlung: bleibt nur lokal
+/PROMPTS.md
+
+# Strecken aus Assetto Corsa: nur lokal (Lizenz erlaubt keine Weitergabe)
+/assets/tracks/
+__pycache__/
