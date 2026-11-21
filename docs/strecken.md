@@ -58,13 +58,32 @@ Im Spiel: **Esc → „Osaka Nanko (track)“**, zurück mit **Esc** (lädt die 
 | Bildrate stehend, alles sichtbar | 138 FPS im Schnitt |
 | Fahrbahn-Physik | 21 469 Dreiecke (aus `physical_free.kn5`) |
 
+## Texturen
+
+Die **Original-Texturen fehlen in dieser Download-Version**: in allen `.kn5`-Dateien stecken
+nur 270 Stück 1×1-Pixel-Platzhalter (PNG, 70 Byte), und auf dem Rechner liegt keine
+Assetto-Corsa-Installation, aus deren `content/texture` die Strecke etwas laden könnte.
+
+Deshalb erzeugt `track_world.gd` die Oberflächen selbst (`add_textures`, `TEXTURE_STYLES`):
+pro Materialart ein Rausch-Muster als Farbe **und** als Normalen-Karte, projiziert mit
+**Triplanar-Mapping in Weltkoordinaten** – dadurch braucht die Geometrie keine UVs.
+Asphalt bekommt feines Korn, Beton grobe Flecken, Rost und Ziegel kräftiges Relief, Metall
+kaum. Kosten: 15 Texturen, 40 ms beim Laden, keine messbare Bildrate weniger (138 statt 141 FPS).
+
+Feinheit je Stil über `meters` (Meter bis zur nächsten Wiederholung), Stärke des Reliefs über
+`bump`. Alles im Godot-Editor im Knoten `TrackWorld` einstellbar.
+
+**Echte Texturen nachrüsten** (nur mit eigenem Assetto Corsa + Content Manager möglich):
+Strecke dort öffnen, Modell als FBX/OBJ **mit Texturen** exportieren, dann in
+`tools/kn5_to_gltf.py` UVs (`TEXCOORD_0`) mitschreiben und die `.dds`-Dateien mit Pillow
+nach PNG wandeln. Dafür müssen dann die erzeugten Texturen abgeschaltet werden
+(`add_textures = false`).
+
 ## Was fehlt / ist anders als in Assetto Corsa
 
-- **Keine Texturen.** In dieser Download-Version sind alle 270 Texturen der `.kn5`-Dateien
-  nur 1×1-Pixel-Platzhalter. Die Farben kommen aus dem Materialnamen (Asphalt dunkel,
-  Beton grau, Container, Ziegel …) mit leichter Streuung. Deshalb sieht die Strecke flächig
-  aus. Mit echten Texturen (Content Manager + eigenes Spiel) ließe sich das nachrüsten.
-- **Bäume, Büsche, Gras und Fensterscheiben sind weggelassen** – das sind in Assetto Corsa
+- **Keine Original-Texturen** (siehe oben) – die selbst erzeugten ersetzen nur die Körnung,
+  nicht die echten Schriften, Schilder, Plakate und Fassaden.
+- **Bäume, Büsche, Gras, Fensterscheiben und Skidmarks sind weggelassen** – das sind in Assetto Corsa
   flache Karten mit Alphakanal; ohne Textur würden sie als große farbige Platten wirken
   (`should_skip` im Werkzeug). Ebenso die Skidmarks.
 - **Kein Verkehr, keine Tempolimits, keine Minimap, keine Entdeckerkarte, kein Rennen.**

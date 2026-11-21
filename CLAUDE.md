@@ -140,4 +140,5 @@ Alle Argumente im Kopf von `scripts/debug_tools.gd`, mehr in `docs/testen.md`.
   Windows-Version in zwei Varianten (voll nur lokal, Download nur mit CC-BY-Modellen) · Release v1.0.0 auf GitHub
 - [x] Strecken-Modus: Osaka Nanko aus Assetto Corsa umgewandelt (`tools/kn5_to_gltf.py`, gekachelte glTF),
   Fahrbahn-Physik aus `physical_free.kn5`, Umschalten im Pausemenü und über `--track=osaka` ·
-  endlose Welt unverändert · 138 FPS stehend · noch ohne Texturen, Verkehr und HUD (siehe `docs/strecken.md`)
+  endlose Welt unverändert · 138 FPS stehend · Texturen selbst erzeugt (Rauschen + Normalen-Karte,
+  Triplanar), Original-Texturen fehlen im Download · noch ohne Verkehr und HUD (siehe `docs/strecken.md`)

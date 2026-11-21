@@ -31,6 +31,11 @@ extends Node3D
 ## Blickrichtung des Autos in Grad (0 = Richtung +Z)
 @export var spawn_heading: float = 90.0
 
+@export_group("Texturen")
+## Texturen aus dem Materialnamen erzeugen (Koernung fuer Asphalt, Beton, Rost usw.).
+## Die Original-Texturen der Strecke fehlen in dieser Download-Version.
+@export var add_textures: bool = true
+
 @export_group("Leistung")
 ## Ab dieser Entfernung (Meter) wird eine Kachel nicht mehr gezeichnet
 @export var view_distance: float = 1400.0
@@ -107,7 +112,7 @@ func _setup_sky() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.55
+	environment.ambient_light_energy = 0.45
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.ssao_enabled = true
 	environment.glow_enabled = true
@@ -123,7 +128,7 @@ func _setup_sky() -> void:
 	var day_angle := clampf((time_of_day - 6.0) / 12.0, 0.02, 0.98) * PI
 	var elevation := rad_to_deg(asin(clampf(sin(day_angle), 0.1, 1.0)))
 	_sun.rotation = Vector3(-deg_to_rad(elevation), deg_to_rad(140.0), 0.0)
-	_sun.light_energy = 1.35
+	_sun.light_energy = 1.05
 
 
 ## Lädt alle Kacheln aus den Listen. Ohne Liste (z. B. alte Umwandlung) werden
@@ -158,6 +163,7 @@ func _load_tiles() -> void:
 		_apply_draw_settings(tile)
 		_tile_count += 1
 	print("Osaka: %d Kacheln in %.1f s geladen" % [_tile_count, (Time.get_ticks_msec() - started) / 1000.0])
+	_restyle_tiles()
 
 
 func _read_json(path: String) -> Dictionary:
@@ -180,6 +186,152 @@ func _apply_draw_settings(node: Node) -> void:
 			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_apply_draw_settings(child)
+
+
+## Textur-Stile: Rauschen (Korn) je Materialart. Ohne Texturen wirken alle
+## Flaechen wie einfarbiges Papier, weil in der .kn5-Datei nur 1x1-Platzhalter
+## stecken (siehe docs/strecken.md).
+## "bump" = Staerke der Normalen-Karte (0 = keine), damit Flaechen Relief bekommen.
+const TEXTURE_STYLES := {
+	"asphalt": {"frequency": 0.35, "octaves": 4, "meters": 3.0, "low": 0.60, "high": 1.0, "bump": 0.45},
+	"markings": {"frequency": 0.60, "octaves": 2, "meters": 1.5, "low": 0.90, "high": 1.0, "bump": 0.0},
+	"concrete": {"frequency": 0.12, "octaves": 4, "meters": 8.0, "low": 0.72, "high": 1.0, "bump": 0.35},
+	"brick": {"frequency": 0.30, "octaves": 3, "meters": 4.0, "low": 0.66, "high": 1.0, "bump": 0.5},
+	"metal": {"frequency": 0.20, "octaves": 2, "meters": 5.0, "low": 0.84, "high": 1.0, "bump": 0.15},
+	"rust": {"frequency": 0.45, "octaves": 5, "meters": 2.5, "low": 0.55, "high": 1.0, "bump": 0.55},
+	"container": {"frequency": 0.25, "octaves": 3, "meters": 4.0, "low": 0.75, "high": 1.0, "bump": 0.3},
+	"wood": {"frequency": 0.40, "octaves": 3, "meters": 3.0, "low": 0.65, "high": 1.0, "bump": 0.45},
+}
+
+## Materialname -> Stil (Reihenfolge zaehlt: der erste Treffer gewinnt)
+const STYLE_KEYWORDS := [
+	["markings", "line"],
+	["asphalt", "tarmac", "road"],
+	["brick", "brickwall"],
+	["rust"],
+	["container"],
+	["wood", "crate", "carpet", "bag", "scrap"],
+	["metal", "pole", "chrome", "mirror", "steel", "bronze"],
+	["concrete", "wall", "pillar", "stand", "silo", "bareconcrete", "drain", "curb", "kerb"],
+]
+
+## Einmal erzeugte Texturen und Materialien (nach Materialname)
+var _texture_cache: Dictionary = {}
+var _material_cache: Dictionary = {}
+
+
+func _restyle_tiles() -> void:
+	if not add_textures:
+		return
+	var started := Time.get_ticks_msec()
+	for tile in _tiles.get_children():
+		_restyle_node(tile)
+	print("Osaka: Texturen in %d Stilen, %.0f ms" % [_texture_cache.size(), Time.get_ticks_msec() - started])
+
+
+func _restyle_node(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mesh: Mesh = (node as MeshInstance3D).mesh
+		if mesh != null:
+			for surface in mesh.get_surface_count():
+				var source := mesh.surface_get_material(surface) as StandardMaterial3D
+				if source == null:
+					continue
+				mesh.surface_set_material(surface, _styled_material(source))
+	for child in node.get_children():
+		_restyle_node(child)
+
+
+func _styled_material(source: StandardMaterial3D) -> StandardMaterial3D:
+	var name := source.resource_name
+	var key := name if name != "" else "%s_%s" % [source.albedo_color, source.roughness]
+	if _material_cache.has(key):
+		return _material_cache[key]
+
+	var material := StandardMaterial3D.new()
+	material.resource_name = name
+	material.albedo_color = source.albedo_color
+	material.roughness = source.roughness
+	material.metallic = source.metallic
+	material.transparency = source.transparency
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	# Fensterglas bekommt keine Koernung
+	if source.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+		var style := _style_for(name)
+		if style != "":
+			var settings: Dictionary = TEXTURE_STYLES[style]
+			material.albedo_texture = _texture_for(style, settings)
+			material.uv1_triplanar = true
+			material.uv1_world_triplanar = true
+			material.uv1_triplanar_sharpness = 8.0
+			material.uv1_scale = Vector3.ONE / float(settings["meters"])
+			var bump := float(settings["bump"])
+			if bump > 0.0:
+				material.normal_enabled = true
+				material.normal_texture = _normal_texture_for(style, settings)
+				material.normal_scale = bump
+
+	_material_cache[key] = material
+	return material
+
+
+func _style_for(material_name: String) -> String:
+	var lower := material_name.to_lower()
+	for entry in STYLE_KEYWORDS:
+		for keyword in entry:
+			if lower.contains(keyword):
+				var style: String = entry[0]
+				return style if TEXTURE_STYLES.has(style) else "concrete"
+	return ""
+
+
+## Normalen-Karte aus demselben Rauschen (Godot rechnet sie aus der Hoehe).
+func _normal_texture_for(style: String, settings: Dictionary) -> Texture2D:
+	var key := style + "_n"
+	if _texture_cache.has(key):
+		return _texture_cache[key]
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = float(settings["frequency"])
+	noise.fractal_octaves = int(settings["octaves"])
+	noise.seed = 4242 + style.length() * 31
+	var texture := NoiseTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.seamless = true
+	texture.generate_mipmaps = true
+	texture.as_normal_map = true
+	texture.bump_strength = 6.0
+	texture.noise = noise
+	_texture_cache[key] = texture
+	return texture
+
+
+func _texture_for(style: String, settings: Dictionary) -> Texture2D:
+	if _texture_cache.has(style):
+		return _texture_cache[style]
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = float(settings["frequency"])
+	noise.fractal_octaves = int(settings["octaves"])
+	noise.seed = 1337 + style.length() * 17
+	# Zwei Farbstufen: das Rauschen bleibt zwischen "low" und 1,0,
+	# damit die Textur die Grundfarbe nur leicht aufhellt/abdunkelt.
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.5, 0.5, 0.5))
+	ramp.set_offset(0, float(settings["low"]))
+	ramp.set_color(1, Color(1, 1, 1))
+	ramp.set_offset(1, float(settings["high"]))
+	var texture := NoiseTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.seamless = true
+	texture.generate_mipmaps = true
+	texture.noise = noise
+	texture.color_ramp = ramp
+	_texture_cache[style] = texture
+	return texture
 
 
 ## Physik aus der eigenen Physik-Datei (nicht aus der Anzeige-Geometrie:

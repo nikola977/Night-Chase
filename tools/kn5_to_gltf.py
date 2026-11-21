@@ -194,7 +194,7 @@ _STYLES = [
     (("chrome", "mirror", "metal_pole", "pole", "steel", "metal"), (0.55, 0.56, 0.58), 0.35, 0.9, False),
     (("container",), (0.45, 0.42, 0.38), 0.70, 0.3, False),
     (("brick", "brickwall"), (0.48, 0.36, 0.30), 0.90, 0.0, False),
-    (("concrete", "wall", "pillar", "stand", "silo", "bareconcrete"), (0.44, 0.43, 0.42), 0.85, 0.0, False),
+    (("concrete", "wall", "pillar", "stand", "silo", "bareconcrete"), (0.36, 0.35, 0.34), 0.85, 0.0, False),
     (("rust",), (0.40, 0.30, 0.24), 0.85, 0.2, False),
     (("sign", "trafficlight", "lamp", "light", "emissive", "tube"), (0.80, 0.80, 0.78), 0.50, 0.0, False),
     (("scrap", "bag", "crate", "wood", "carpet", "tarp"), (0.44, 0.40, 0.34), 0.90, 0.0, False),
