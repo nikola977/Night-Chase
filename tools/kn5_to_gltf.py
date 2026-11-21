@@ -2,29 +2,32 @@
 
 Warum dieses Skript?
     Godot kann .kn5 nicht lesen. Die vorhandenen Konverter schreiben ein einziges
-    riesiges OBJ (hier 1,4 GB / 7,8 Mio. Dreiecke) - das laedt Godot nicht in
+    riesiges OBJ (hier 1,4 GB / 3,9 Mio. Dreiecke) - das laedt Godot nicht in
     vertretbarer Zeit. Dieses Skript liest die .kn5 direkt und schreibt pro
     Bodenkachel eine eigene .glb-Datei. Dadurch kann Godot Kacheln einzeln
     ausblenden (Sichtweite) und wir behalten die Kontrolle ueber Materialien.
+
+Texturen:
+    Echte Texturen aus der .kn5 werden als PNG in die .glb eingebettet (mit UVs),
+    inklusive Leucht-Textur (emissive). Fehlt eine Textur (in dieser Strecke sind
+    fast alle nur 70-Byte-Platzhalter), bleibt das Material einfarbig - Godot
+    erzeugt dann selbst eine Koernung (siehe scripts/track_world.gd).
 
 Aufruf (Beispiele):
     python tools/kn5_to_gltf.py --in TRACK/90sgdsp_osaka_nanko.kn5 --out assets/tracks/osaka --tile=250
     python tools/kn5_to_gltf.py --in TRACK/physical_free.kn5 --out assets/tracks/osaka --collision
 
-Hinweise:
-    * Texturen in dieser Strecke sind 1x1-Platzhalter, deshalb wird die
-      Materialfarbe aus dem Materialnamen abgeleitet (siehe _material_style).
-    * Koordinaten bleiben 1:1 wie in Assetto Corsa (Meter, Y nach oben).
-    * Alles laeuft ohne Assetto Corsa und ohne Blender.
+Voraussetzungen: Python 3 mit numpy und pillow (pip install numpy pillow).
 """
 
 import argparse
+import io
 import json
 import os
 import struct
-import sys
 
 import numpy as np
+from PIL import Image
 
 
 # ---------------------------------------------------------------- kn5 lesen
@@ -34,8 +37,9 @@ class Material:
         self.name = ""
         self.shader = ""
         self.tx_diffuse = ""
+        self.tx_normal = ""
         self.alpha_ref = 1.0
-        self.diffuse_mult = 1.0
+        self.emissive = 0.0
 
 
 class MeshNode:
@@ -43,8 +47,9 @@ class MeshNode:
         self.name = ""
         self.type = 0
         self.matrix = np.identity(4, dtype=np.float64)
-        self.positions = None   # (n, 3) float32, schon in Weltkoordinaten
+        self.positions = None   # (n, 3) float32
         self.normals = None     # (n, 3) float32
+        self.uvs = None         # (n, 2) float32
         self.indices = None     # (m,) uint32
         self.material_id = -1
 
@@ -56,7 +61,7 @@ def _read_string(data, pos):
 
 
 def _strided(data, offset, count, per_vertex, columns, first):
-    """Liest count Dreiergruppen aus einem Vertex-Block fester Groesse."""
+    """Liest count Zahlenreihen aus einem Vertex-Block fester Groesse."""
     view = np.frombuffer(
         data, dtype="<f4", count=count * (per_vertex // 4),
         offset=offset).reshape(count, per_vertex // 4)
@@ -64,11 +69,10 @@ def _strided(data, offset, count, per_vertex, columns, first):
 
 
 def read_kn5(path):
-    """Liest Texturen (nur Namen), Materialien und alle Mesh-Knoten."""
+    """Liest Texturen, Materialien und alle Mesh-Knoten (mit Weltmatrix)."""
     with open(path, "rb") as file:
         data = file.read()
-    magic = data[:6]
-    if magic not in (b"sc6969", b"sc5876"):
+    if data[:6] not in (b"sc6969", b"sc5876"):
         raise SystemExit("Keine .kn5-Datei: %s" % path)
     version = struct.unpack_from("<I", data, 6)[0]
     pos = 10
@@ -77,12 +81,15 @@ def read_kn5(path):
 
     texture_count = struct.unpack_from("<i", data, pos)[0]
     pos += 4
+    textures = {}
     for _ in range(texture_count):
         _tex_type = struct.unpack_from("<i", data, pos)[0]
         pos += 4
-        _name, pos = _read_string(data, pos)
+        name, pos = _read_string(data, pos)
         size = struct.unpack_from("<i", data, pos)[0]
-        pos += 4 + size
+        pos += 4
+        textures[name] = data[pos:pos + size]
+        pos += size
 
     material_count = struct.unpack_from("<i", data, pos)[0]
     pos += 4
@@ -102,8 +109,8 @@ def read_kn5(path):
             pos += 4 + 36
             if prop_name == "ksAlphaRef":
                 material.alpha_ref = value
-            elif prop_name == "diffuseMult":
-                material.diffuse_mult = value
+            elif prop_name == "ksEmissive":
+                material.emissive = value
         sample_count = struct.unpack_from("<i", data, pos)[0]
         pos += 4
         for _ in range(sample_count):
@@ -112,11 +119,13 @@ def read_kn5(path):
             tex_name, pos = _read_string(data, pos)
             if sample == "txDiffuse":
                 material.tx_diffuse = tex_name
+            elif sample == "txNormal":
+                material.tx_normal = tex_name
         materials.append(material)
 
     nodes = []
 
-    def read_node(parent_matrix, parent_index):
+    def read_node(parent_matrix):
         nonlocal pos
         node = MeshNode()
         node.type = struct.unpack_from("<i", data, pos)[0]
@@ -125,7 +134,6 @@ def read_kn5(path):
         children = struct.unpack_from("<i", data, pos)[0]
         pos += 4
         pos += 1                                  # aktiv-Flag
-        local = np.identity(4, dtype=np.float64)
         if node.type == 1:                        # leerer Knoten
             local = np.array(
                 struct.unpack_from("<16f", data, pos), dtype=np.float64).reshape(4, 4)
@@ -141,11 +149,13 @@ def read_kn5(path):
                     pos += 64
             vertex_count = struct.unpack_from("<i", data, pos)[0]
             pos += 4
-            # Ein Vertex sind 44 Bytes (Position, Normale, UV, Tangente),
-            # bei animierten Meshes zusaetzlich 32 Bytes Knochen-Daten.
+            # 44 Bytes je Vertex (Position, Normale, UV, Tangente), bei
+            # animierten Meshes zusaetzlich 32 Bytes Knochen-Daten.
             per_vertex = 44 if node.type == 2 else 76
             node.positions = _strided(data, pos, vertex_count, per_vertex, 3, 0)
             node.normals = _strided(data, pos, vertex_count, per_vertex, 3, 3)
+            node.uvs = _strided(data, pos, vertex_count, per_vertex, 2, 6)
+            node.uvs[:, 1] = 1.0 - node.uvs[:, 1]
             pos += vertex_count * per_vertex
             index_count = struct.unpack_from("<i", data, pos)[0]
             pos += 4
@@ -161,14 +171,11 @@ def read_kn5(path):
             raise SystemExit("Unbekannter Knotentyp %d" % node.type)
 
         nodes.append(node)
-        index = len(nodes) - 1
         for _ in range(children):
-            read_node(node.matrix, index)
-        return node
+            read_node(node.matrix)
 
-    root = np.identity(4, dtype=np.float64)
-    read_node(root, -1)
-    return materials, nodes
+    read_node(np.identity(4, dtype=np.float64))
+    return textures, materials, nodes
 
 
 def world_vertices(node):
@@ -186,8 +193,8 @@ def world_vertices(node):
 
 # (Schluesselwoerter, Farbe, Rauheit, Metall, durchsichtig)
 _STYLES = [
-    (("asphalt", "road", "tarmac", "concrete_road"), (0.30, 0.30, 0.31), 0.85, 0.0, False),
-    (("markings", "line", "white_line"), (0.85, 0.84, 0.80), 0.60, 0.0, False),
+    (("asphalt", "road", "tarmac"), (0.30, 0.30, 0.31), 0.85, 0.0, False),
+    (("markings", "line"), (0.85, 0.84, 0.80), 0.60, 0.0, False),
     (("kerb", "curb"), (0.70, 0.68, 0.62), 0.75, 0.0, False),
     (("grass", "dirt", "gravel", "sand", "soil"), (0.32, 0.36, 0.24), 0.95, 0.0, False),
     (("glass", "window", "windscreen"), (0.55, 0.62, 0.68), 0.10, 0.0, True),
@@ -201,10 +208,8 @@ _STYLES = [
     (("tree", "leaf", "leaves", "bush", "plant"), (0.28, 0.34, 0.20), 0.90, 0.0, False),
 ]
 
-
 ## Materialien, die ohne ihre Textur sinnlos sind: Baeume, Buesche und Gras sind in
 ## Assetto Corsa flache Karten, die nur mit Alphakanal wie Pflanzen aussehen.
-## Ohne Textur wuerden sie als grosse gruene Platten in der Gegend stehen.
 _NEEDS_TEXTURE = ("tree", "pltree", "bush", "ivy", "grass", "leaf", "leaves", "flag")
 
 
@@ -240,6 +245,25 @@ def _vary(name, color):
             min(1.0, color[2] * brightness - warm))
 
 
+def texture_png(blob, name):
+    """Echte .dds/.png-Textur aus der .kn5 in PNG wandeln.
+
+    Platzhalter dieser Strecke sind 70 Byte kleine 1x1-PNGs - die sind nutzlos
+    und werden deshalb verworfen."""
+    if not blob or len(blob) < 2048:
+        return None
+    try:
+        image = Image.open(io.BytesIO(blob))
+        image = image.convert("RGBA")
+        if image.size[0] < 8 or image.size[1] < 8:
+            return None
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+    except Exception:
+        return None
+
+
 # --------------------------------------------------------------- glb schreiben
 
 def _pad(buffer, alignment=4):
@@ -252,46 +276,55 @@ class GlbBuilder:
         self.blob = bytearray()
         self.materials = []
         self.primitives = []
+        self.images = []      # (name, png bytes)
+        self.textures = []    # Bildindex je Textur
 
-    def add_primitive(self, positions, normals, indices, material_index):
+    def add_image(self, name, png):
+        self.images.append((name, png))
+        self.textures.append(len(self.images) - 1)
+        return len(self.textures) - 1
+
+    def add_primitive(self, positions, normals, uvs, indices, material_index):
         if len(indices) == 0:
             return
-        # Vertices zusammenfassen: gleiche Position + Normale = ein Vertex
-        packed = np.concatenate([positions, normals], axis=1)
-        unique, inverse = np.unique(
-            np.round(packed, 4), axis=0, return_inverse=True)
+        # Vertices zusammenfassen: gleiche Position + Normale + UV = ein Vertex
+        packed = np.concatenate([positions, normals, uvs], axis=1)
+        unique, inverse = np.unique(np.round(packed, 4), axis=0, return_inverse=True)
         remapped = inverse.astype(np.uint32)[indices]
         unique_positions = unique[:, :3].astype(np.float32)
-        unique_normals = unique[:, 3:].astype(np.float32)
+        unique_normals = unique[:, 3:6].astype(np.float32)
+        unique_uvs = unique[:, 6:8].astype(np.float32)
 
-        position_offset = len(self.blob)
-        self.blob += unique_positions.tobytes()
-        _pad(self.blob)
-        normal_offset = len(self.blob)
-        self.blob += unique_normals.tobytes()
-        _pad(self.blob)
-        index_offset = len(self.blob)
-        self.blob += remapped.astype(np.uint32).tobytes()
-        _pad(self.blob)
+        parts = {}
+        for key, array in (("position", unique_positions), ("normal", unique_normals),
+                           ("uv", unique_uvs), ("index", remapped)):
+            offset = len(self.blob)
+            self.blob += array.tobytes()
+            _pad(self.blob)
+            parts[key] = (offset, len(array))
         self.primitives.append({
-            "position": (position_offset, len(unique_positions)),
-            "normal": (normal_offset, len(unique_normals)),
-            "index": (index_offset, len(remapped)),
+            "parts": parts,
             "material": material_index,
             "min": unique_positions.min(axis=0).tolist(),
             "max": unique_positions.max(axis=0).tolist(),
         })
 
-    def add_material(self, name, color, roughness, metallic, transparent):
-        material = {
-            "name": name,
-            "pbrMetallicRoughness": {
-                "baseColorFactor": [color[0], color[1], color[2], 1.0],
-                "metallicFactor": metallic,
-                "roughnessFactor": roughness,
-            },
-            "doubleSided": True,
+    def add_material(self, name, color, roughness, metallic, transparent,
+                     diffuse_texture=-1, emissive=False):
+        pbr = {
+            "metallicFactor": metallic,
+            "roughnessFactor": roughness,
         }
+        if diffuse_texture >= 0:
+            # Textur bestimmt die Farbe, kein Toenen
+            pbr["baseColorFactor"] = [1.0, 1.0, 1.0, 1.0]
+            pbr["baseColorTexture"] = {"index": diffuse_texture}
+        else:
+            pbr["baseColorFactor"] = [color[0], color[1], color[2], 1.0]
+        material = {"name": name, "pbrMetallicRoughness": pbr, "doubleSided": True}
+        if diffuse_texture >= 0 and emissive:
+            material["emissiveTexture"] = {"index": diffuse_texture}
+            material["emissiveFactor"] = [1.0, 1.0, 1.0]
         if transparent:
             material["alphaMode"] = "BLEND"
             material["pbrMetallicRoughness"]["baseColorFactor"][3] = 0.45
@@ -302,35 +335,44 @@ class GlbBuilder:
         accessors = []
         views = []
         primitives_json = []
+
+        def add_view(offset, length, target=None):
+            view = {"buffer": 0, "byteOffset": offset, "byteLength": length}
+            if target is not None:
+                view["target"] = target
+            views.append(view)
+            return len(views) - 1
+
         for primitive in self.primitives:
-            indices_view = len(views)
-            views.append({"buffer": 0, "byteOffset": primitive["index"][0],
-                          "byteLength": primitive["index"][1] * 4, "target": 34963})
-            accessors.append({"bufferView": indices_view, "componentType": 5125,
-                              "count": primitive["index"][1], "type": "SCALAR"})
-            index_accessor = len(accessors) - 1
-
-            position_view = len(views)
-            views.append({"buffer": 0, "byteOffset": primitive["position"][0],
-                          "byteLength": primitive["position"][1] * 12, "target": 34962})
-            accessors.append({"bufferView": position_view, "componentType": 5126,
-                              "count": primitive["position"][1], "type": "VEC3",
+            parts = primitive["parts"]
+            index_accessor = len(accessors)
+            accessors.append({"bufferView": add_view(parts["index"][0], parts["index"][1] * 4, 34963),
+                              "componentType": 5125, "count": parts["index"][1], "type": "SCALAR"})
+            position_accessor = len(accessors)
+            accessors.append({"bufferView": add_view(parts["position"][0], parts["position"][1] * 12, 34962),
+                              "componentType": 5126, "count": parts["position"][1], "type": "VEC3",
                               "min": primitive["min"], "max": primitive["max"]})
-            position_accessor = len(accessors) - 1
-
-            normal_view = len(views)
-            views.append({"buffer": 0, "byteOffset": primitive["normal"][0],
-                          "byteLength": primitive["normal"][1] * 12, "target": 34962})
-            accessors.append({"bufferView": normal_view, "componentType": 5126,
-                              "count": primitive["normal"][1], "type": "VEC3"})
-            normal_accessor = len(accessors) - 1
-
+            normal_accessor = len(accessors)
+            accessors.append({"bufferView": add_view(parts["normal"][0], parts["normal"][1] * 12, 34962),
+                              "componentType": 5126, "count": parts["normal"][1], "type": "VEC3"})
+            uv_accessor = len(accessors)
+            accessors.append({"bufferView": add_view(parts["uv"][0], parts["uv"][1] * 8, 34962),
+                              "componentType": 5126, "count": parts["uv"][1], "type": "VEC2"})
             primitives_json.append({
-                "attributes": {"POSITION": position_accessor, "NORMAL": normal_accessor},
+                "attributes": {"POSITION": position_accessor, "NORMAL": normal_accessor,
+                               "TEXCOORD_0": uv_accessor},
                 "indices": index_accessor,
                 "material": primitive["material"],
                 "mode": 4,
             })
+
+        images_json = []
+        for name, png in self.images:
+            offset = len(self.blob)
+            self.blob += png
+            _pad(self.blob)
+            images_json.append({"bufferView": add_view(offset, len(png)), "mimeType": "image/png",
+                                "name": name})
 
         _pad(self.blob)
         gltf = {
@@ -344,6 +386,11 @@ class GlbBuilder:
             "bufferViews": views,
             "buffers": [{"byteLength": len(self.blob)}],
         }
+        if images_json:
+            gltf["images"] = images_json
+            gltf["textures"] = [{"source": source, "sampler": 0} for source in self.textures]
+            gltf["samplers"] = [{"magFilter": 9729, "minFilter": 9987,
+                                 "wrapS": 10497, "wrapT": 10497}]
         json_chunk = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
         while len(json_chunk) % 4:
             json_chunk += b" "
@@ -368,12 +415,13 @@ def main():
                         help="Alles in eine Datei, nur fuer die Fahrbahn-Physik")
     args = parser.parse_args()
 
-    materials, nodes = read_kn5(args.source)
+    textures, materials, nodes = read_kn5(args.source)
     model = os.path.splitext(os.path.basename(args.source))[0]
-    print("%d Materialien, %d Knoten" % (len(materials), len(nodes)))
+    print("%d Materialien, %d Knoten, %d Texturen" % (len(materials), len(nodes), len(textures)))
 
     tiles = {}
     total_triangles = 0
+    texture_count = 0
     low = np.array([1e9, 1e9, 1e9])
     high = np.array([-1e9, -1e9, -1e9])
     for node in nodes:
@@ -382,8 +430,7 @@ def main():
         positions, normals = world_vertices(node)
         low = np.minimum(low, positions.min(axis=0))
         high = np.maximum(high, positions.max(axis=0))
-        triangles = len(node.indices) // 3
-        total_triangles += triangles
+        total_triangles += len(node.indices) // 3
         material_index = node.material_id if 0 <= node.material_id < len(materials) else -1
         if 0 <= material_index < len(materials) and should_skip(materials[material_index]):
             continue
@@ -392,28 +439,38 @@ def main():
         else:
             center = positions.mean(axis=0)
             key = (int(np.floor(center[0] / args.tile)), int(np.floor(center[2] / args.tile)))
-        tiles.setdefault(key, []).append((material_index, positions, normals, node.indices))
-    print("%.0f Mio. Dreiecke in %d Kacheln" % (total_triangles / 1e6, len(tiles)))
+        tiles.setdefault(key, []).append(
+            (material_index, positions, normals, node.uvs, node.indices))
+    print("%.2f Mio. Dreiecke in %d Kacheln" % (total_triangles / 1e6, len(tiles)))
 
     os.makedirs(args.target, exist_ok=True)
     manifest_tiles = []
     bounds = {"min": low.tolist(), "max": high.tolist()}
     print("Ausdehnung x %.0f..%.0f  y %.0f..%.0f  z %.0f..%.0f" % (
         low[0], high[0], low[1], high[1], low[2], high[2]))
+
     for key in sorted(tiles):
         builder = GlbBuilder()
         material_ids = {}
-        for material_index, positions, normals, indices in tiles[key]:
+        for material_index, positions, normals, uvs, indices in tiles[key]:
             if material_index not in material_ids:
                 if args.collision or material_index < 0:
-                    color, roughness, metallic, transparent = (0.5, 0.5, 0.5), 0.8, 0.0, False
-                    name = "collision"
+                    material_ids[material_index] = builder.add_material(
+                        "collision", (0.5, 0.5, 0.5), 0.8, 0.0, False)
                 else:
-                    color, roughness, metallic, transparent = _material_style(materials[material_index])
-                    name = materials[material_index].name
-                material_ids[material_index] = builder.add_material(
-                    name, color, roughness, metallic, transparent)
-            builder.add_primitive(positions, normals, indices, material_ids[material_index])
+                    material = materials[material_index]
+                    color, roughness, metallic, transparent = _material_style(material)
+                    texture_index = -1
+                    png = texture_png(textures.get(material.tx_diffuse, b""), material.tx_diffuse)
+                    if png is not None:
+                        texture_index = builder.add_image(material.name, png)
+                        texture_count += 1
+                    emissive = "emissive" in material.name.lower() or material.emissive > 0.0
+                    material_ids[material_index] = builder.add_material(
+                        material.name, color, roughness, metallic, transparent,
+                        texture_index, emissive)
+            builder.add_primitive(positions, normals, uvs, indices,
+                                  material_ids[material_index])
 
         if args.collision or args.tile <= 0:
             name = "collision"
@@ -424,20 +481,22 @@ def main():
         path = os.path.join(args.target, name + ".glb")
         builder.save(path)
         size = os.path.getsize(path)
-        manifest_tiles.append({"name": name, "file": os.path.basename(path), "bytes": size})
-        print("  %-14s %6.1f MB" % (name, size / 1048576.0))
+        manifest_tiles.append({"name": name, "file": os.path.basename(path), "bytes": size,
+                               "textures": len(builder.images)})
 
     manifest = {
         "source": os.path.basename(args.source),
         "tile_size": args.tile,
         "triangles": total_triangles,
+        "textures_used": texture_count,
         "bounds": bounds,
         "tiles": manifest_tiles,
     }
     manifest_name = "manifest.json" if args.collision else model + "_manifest.json"
     with open(os.path.join(args.target, manifest_name), "w", encoding="utf-8") as file:
         json.dump(manifest, file, indent=1)
-    print("Fertig: %s (%d Dateien)" % (args.target, len(manifest_tiles)))
+    print("Fertig: %s (%d Dateien, %d echte Texturen)" % (args.target, len(manifest_tiles),
+                                                          texture_count))
 
 
 if __name__ == "__main__":

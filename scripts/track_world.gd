@@ -21,6 +21,7 @@ extends Node3D
 	"vehicles_manifest.json",
 	"bg_manifest.json",
 	"lights_manifest.json",
+	"tower_emissive_manifest.json",
 ]
 ## Nur für die Physik: Fahrbahn, Randsteine, Gras, unsichtbare Wände
 @export_file("*.glb") var collision_file: String = "res://assets/tracks/osaka/collision.glb"
@@ -247,6 +248,10 @@ func _styled_material(source: StandardMaterial3D) -> StandardMaterial3D:
 	var key := name if name != "" else "%s_%s" % [source.albedo_color, source.roughness]
 	if _material_cache.has(key):
 		return _material_cache[key]
+	# Echte Textur aus der .kn5 (z. B. der Leuchtturm): unangetastet lassen.
+	if source.albedo_texture != null or source.emission_texture != null:
+		_material_cache[key] = source
+		return source
 
 	var material := StandardMaterial3D.new()
 	material.resource_name = name

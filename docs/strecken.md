@@ -53,9 +53,10 @@ Im Spiel: **Esc → „Osaka Nanko (track)“**, zurück mit **Esc** (lädt die 
 | Dreiecke gesamt (Fahrbahn, Gebäude, Requisiten, Masten, Autos, Kulisse, Lichter) | ca. 12 Mio. |
 | Kacheln | 124 × 250 m |
 | Dateien / Größe | 148 `.glb`, 435 MB |
-| Import | ~55 s |
-| Ladezeit im Spiel | 1,4 s |
-| Bildrate stehend, alles sichtbar | 138 FPS im Schnitt |
+| Import | ~60 s |
+| Ladezeit im Spiel | 1,9 s |
+| Bildrate stehend, alles sichtbar | 139 FPS im Schnitt |
+| echte Texturen in der Strecke | 1 (Turm), alle anderen 613 sind Platzhalter |
 | Fahrbahn-Physik | 21 469 Dreiecke (aus `physical_free.kn5`) |
 
 ## Texturen
@@ -73,7 +74,14 @@ kaum. Kosten: 15 Texturen, 40 ms beim Laden, keine messbare Bildrate weniger (13
 Feinheit je Stil über `meters` (Meter bis zur nächsten Wiederholung), Stärke des Reliefs über
 `bump`. Alles im Godot-Editor im Knoten `TrackWorld` einstellbar.
 
-**Echte Texturen nachrüsten** (nur mit eigenem Assetto Corsa + Content Manager möglich):
+**Echte Texturen sind bereits eingebaut, wenn die `.kn5` welche enthält.** Das Werkzeug
+liest UVs, wandelt `.dds` mit Pillow nach PNG, bettet sie in die `.glb` ein und setzt bei
+Leucht-Materialien zusätzlich `emissiveTexture`. In dieser Strecke ist genau **eine** echte
+Textur vorhanden: `tower_emissive.kn5` (1024×1024, der beleuchtete Turm). Alles andere sind
+70-Byte-Platzhalter – 613 Stück über alle Dateien. Godot überschreibt solche echten
+Materialien nicht mit dem Rauschen (`source.albedo_texture != null`).
+
+**Echte Texturen für den Rest nachrüsten** (nur mit eigenem Assetto Corsa + Content Manager möglich):
 Strecke dort öffnen, Modell als FBX/OBJ **mit Texturen** exportieren, dann in
 `tools/kn5_to_gltf.py` UVs (`TEXCOORD_0`) mitschreiben und die `.dds`-Dateien mit Pillow
 nach PNG wandeln. Dafür müssen dann die erzeugten Texturen abgeschaltet werden
