@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="CarProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/car_profile.gd" id="1_envyg"]
+
+[resource]
+script = ExtResource("1_envyg")
+id = "mx5"
+display_name = "Mazda MX-5 Miata (Pandem)"
+subtitle = "Mazda · 2015"
+brand = "Mazda"
+year = 2015
+model_folder = "2015-pandem-mazda-mx5-miata"
+power_ps = 250
+engine_text = "2,0 l Vierzylinder (Skyactiv, Pandem)"
+wheel_parts = PackedStringArray("pandem_pandem_polySurface26_rim_Nissan_350ZRocketBunnyV2_2003_CallipersCalliperGloss_Material1_0", "pandem_pandem_polySurface1_rim_Nissan_350ZRocketBunnyV2_2003_CallipersCalliperGloss_Material1_0", "pandem_pandem_polySurface24_rim_Nissan_350ZRocketBunnyV2_2003_CallipersCalliperGloss_Material1_0", "pandem_pandem_polySurface23_rim_Nissan_350ZRocketBunnyV2_2003_CallipersCalliperGloss_Material1_0", "pandem_off3_pandem_rim_C3_0", "pandem_off3_pandem_rim_C1_0", "pandem_off3_pandem_c_rim_B_0", "pandem_pandem_polySurface1055_rim_Nissan_350ZRocketBunnyV2_2003_Wheel1A_3D_3DWheel3A_Material1_0", "pandem_off2_pandem_rim_C3_0", "pandem_off2_pandem_rim_C1_0", "pandem_off2_pandem_c_rim_B_0", "pandem_pandem_polySurface703_rim_Nissan_350ZRocketBunnyV2_2003_Wheel1A_3D_3DWheel3A_Material1_0", "pandem_off1_pandem_rim_C3_0", "pandem_off1_pandem_rim_C1_0", "pandem_off1_pandem_c_rim_B_0", "pandem_pandem_polySurface352_rim_Nissan_350ZRocketBunnyV2_2003_Wheel1A_3D_3DWheel3A_Material1_0", "rim_N_off1_pandem_rim_C3_0", "rim_N_off1_pandem_rim_C1_0", "rim_N_off1_pandem_crimC2_0", "rim_N_off1_pandem_c_rim_B_0", "pandem_pandem_polySurface1_rim_Nissan_350ZRocketBunnyV2_2003_Wheel1A_3D_3DWheel3A_Material1_0")
+caliper_parts = PackedStringArray()
+hidden_parts = PackedStringArray()
+interior_parts = PackedStringArray()
+sticker_parts = PackedStringArray()
+paint_materials = PackedStringArray()
+glass_materials = PackedStringArray()
+tire_materials = PackedStringArray()
+rim_materials = PackedStringArray()
+exhaust_materials = PackedStringArray()
+headlight_materials = PackedStringArray()
+taillight_materials = PackedStringArray()
+shadow_parts = PackedStringArray()
+low_detail_parts = PackedStringArray()
+paint_colors = Array[Color]([Color(0.75, 0.08, 0.09, 1), Color(0.86, 0.87, 0.86, 1), Color(0.02, 0.05, 0.12, 1), Color(0.62, 0.64, 0.66, 1), Color(0.92, 0.55, 0.02, 1), Color(0.03, 0.32, 0.6, 1)])
+track_front = 1.75
+track_rear = 1.75
+wheel_radius = 0.28
+body_size = Vector3(1.9104807, 0.7512774, 4.030423)
+body_center = Vector3(0, 0.3688089, 0)
+cabin_size = Vector3(1.3930589, 0.57370275, 2.0563383)
+cabin_center = Vector3(0, 1.0108095, -0.16450708)
+steering_wheel_parts = PackedStringArray()
+indicator_points = PackedVector3Array()
+indicator_materials = PackedStringArray()
+exhaust_tips = PackedVector3Array()
+plate_hide = PackedStringArray("manufacturerpla")

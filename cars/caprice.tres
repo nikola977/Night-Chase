@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="CarProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/car_profile.gd" id="1_hfjou"]
+
+[resource]
+script = ExtResource("1_hfjou")
+id = "caprice"
+display_name = "Chevrolet Caprice Police"
+subtitle = "Chevrolet · 1994"
+brand = "Chevrolet"
+year = 1994
+model_folder = "chevrolet-caprice-police-car-94-free-asset"
+power_ps = 260
+engine_text = "5,7 l V8 (LT1)"
+wheel_parts = PackedStringArray("Caprice_Wheel_RR", "Caprice_Wheel_FR", "Caprice_Wheel_RL", "Caprice_Wheel_FL")
+caliper_parts = PackedStringArray()
+hidden_parts = PackedStringArray()
+interior_parts = PackedStringArray()
+sticker_parts = PackedStringArray()
+paint_materials = PackedStringArray()
+glass_materials = PackedStringArray()
+tire_materials = PackedStringArray()
+rim_materials = PackedStringArray()
+exhaust_materials = PackedStringArray()
+headlight_materials = PackedStringArray()
+taillight_materials = PackedStringArray()
+shadow_parts = PackedStringArray()
+low_detail_parts = PackedStringArray()
+paint_colors = Array[Color]([Color(0.75, 0.08, 0.09, 1), Color(0.86, 0.87, 0.86, 1), Color(0.02, 0.05, 0.12, 1), Color(0.62, 0.64, 0.66, 1), Color(0.92, 0.55, 0.02, 1), Color(0.03, 0.32, 0.6, 1)])
+wheelbase = 2.9879952669143677
+track_front = 1.5318443119525909
+track_rear = 1.5318443119525909
+wheel_radius = 0.3223527
+body_size = Vector3(1.9774296, 0.877375, 5.35482)
+body_center = Vector3(0, 0.43071136, 0)
+cabin_size = Vector3(1.4418758, 0.6699954, 2.732051)
+cabin_center = Vector3(0, 1.1804682, -0.21856408)
+steering_wheel_parts = PackedStringArray()
+indicator_points = PackedVector3Array()
+indicator_materials = PackedStringArray()
+exhaust_tips = PackedVector3Array()
+plate_hide = PackedStringArray("manufacturerpla")

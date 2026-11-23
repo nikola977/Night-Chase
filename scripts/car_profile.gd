@@ -1,0 +1,232 @@
+class_name CarProfile
+extends Resource
+## Alles, was ein Auto ausmacht: Modell, Maße, Fahrwerte, Getriebe, Sound und Daten fürs
+## Datenblatt in der Garage. Ein Profil pro Auto liegt in cars/ (z. B. cars/m2.tres) und
+## lässt sich im Godot-Editor im Inspector bearbeiten.
+##
+## Teile des Modells werden über Muster erkannt (Groß/Klein egal, * = beliebig viele
+## Zeichen). Geprüft werden der Name des Mesh-Knotens, die Namen seiner Eltern-Knoten und
+## die Namen seiner Materialien.
+
+@export_group("General")
+## Kurzer Schlüssel (wird gespeichert, z. B. "m2")
+@export var id: String = ""
+@export var display_name: String = ""
+## Zweite Zeile in der Garage, z. B. „F87 · 2018“
+@export var subtitle: String = ""
+## Marke (Reiter in der Garage, z. B. "BMW M", "Mercedes-AMG") und Baujahr (Reihenfolge)
+@export var brand: String = "BMW M"
+@export var year: int = 2000
+## Ordner unter assets/models/ mit scene.gltf oder einer .glb-Datei
+@export var model_folder: String = ""
+## Feste Pfad zum Modell statt model_folder (z. B. user://editor/models/auto.glb aus dem
+## Editor im Spiel). Leer = wie bisher im Ordner assets/models/<model_folder> suchen. Ein .glb in
+## user:// wird beim Laden direkt mit GLTFDocument gelesen (es ist nicht importiert).
+@export var model_path_override: String = ""
+## Credit-Text aus der license.txt (Pflicht bei CC BY)
+@export_multiline var credit: String = ""
+
+@export_group("Data sheet")
+## Werte für die Anzeige in der Garage (gemessen bzw. laut Hersteller)
+@export var power_ps: int = 0
+@export var drive_text: String = "Rear-wheel drive"
+@export var gearbox_text: String = ""
+@export var engine_text: String = ""
+@export var measured_0_100: float = 0.0
+@export var measured_top_kmh: float = 0.0
+@export var measured_braking_m: float = 0.0
+
+@export_group("Model")
+## Drehung um die Hochachse, damit die Nase nach +Z zeigt (Grad)
+@export var model_rotation_deg: float = 0.0
+## Räder, die sich mitdrehen (Reifen, Felgen, Bremsscheiben)
+@export var wheel_parts: PackedStringArray = PackedStringArray()
+## Teile, die lenken und federn, sich aber nicht drehen (Bremssättel)
+@export var caliper_parts: PackedStringArray = PackedStringArray()
+## Teile, die man nicht sieht oder die stören (Motor, Hilfsobjekte)
+@export var hidden_parts: PackedStringArray = PackedStringArray()
+## Innenraum-Teile, die nur in Cockpit- und Ego-Sicht zu sehen sind (von außen ausgeblendet, spart
+## Leistung)
+@export var interior_parts: PackedStringArray = PackedStringArray()
+## Aufkleber (Taste K)
+@export var sticker_parts: PackedStringArray = PackedStringArray()
+## Materialien, die durch eigene ersetzt werden
+@export var paint_materials: PackedStringArray = PackedStringArray()
+@export var glass_materials: PackedStringArray = PackedStringArray()
+@export var tire_materials: PackedStringArray = PackedStringArray()
+@export var rim_materials: PackedStringArray = PackedStringArray()
+@export var exhaust_materials: PackedStringArray = PackedStringArray()
+@export var headlight_materials: PackedStringArray = PackedStringArray()
+@export var taillight_materials: PackedStringArray = PackedStringArray()
+## Nur diese Teile werfen Schatten (große Karosserieteile, Reifen)
+@export var shadow_parts: PackedStringArray = PackedStringArray()
+## Diese Teile wechseln früher auf vereinfachte Versionen (Innenraum, Felgen)
+@export var low_detail_parts: PackedStringArray = PackedStringArray()
+## Unbewegliche Teile pro Material zu einem Mesh zusammenfassen (weniger Draw Calls).
+## Für Modelle mit sehr vielen Einzelteilen.
+@export var merge_static_parts: bool = false
+## Die Vorderräder sind im Modell eingeschlagen: beim Laden gerade stellen
+@export var straighten_front_wheels: bool = false
+## Wie undurchsichtig die Scheiben sind (0 = klar, 1 = schwarz)
+@export_range(0.0, 1.0) var glass_opacity: float = 0.55
+## Glänzt ein Originalmaterial stärker (Rauheit darunter), bekommt es eine Kopie mit dieser
+## Rauheit. Gegen spiegelnde Felgen und Glitzerpunkte an Zierleisten (0 = nichts ändern)
+@export_range(0.0, 1.0) var min_roughness: float = 0.0
+
+@export_group("Paint")
+## Farben für die Lackauswahl (die erste ist die Standardfarbe)
+@export var paint_colors: Array[Color] = []
+@export_range(0.0, 1.0) var paint_metallic: float = 0.6
+@export_range(0.0, 1.0) var paint_roughness: float = 0.38
+
+@export_group("Dimensions and suspension")
+@export var mass: float = 1500.0
+## Abstand der Achsen, Spurweiten und Radradius (Meter)
+@export var wheelbase: float = 2.7
+@export var track_front: float = 1.6
+@export var track_rear: float = 1.6
+@export var wheel_radius: float = 0.33
+@export var suspension_stiffness: float = 40.0
+@export var suspension_rest_length: float = 0.2
+@export var suspension_travel: float = 0.2
+@export var suspension_max_force: float = 15000.0
+@export var damping_compression: float = 2.0
+@export var damping_relaxation: float = 3.0
+@export var roll_influence: float = 0.5
+## Reifen-Grip vorne und hinten (Godots friction_slip)
+@export var grip_front: float = 1.3
+@export var grip_rear: float = 1.3
+## Kollision: untere Box (Karosserie) und obere Box (Kabine), Größe und Mitte
+@export var body_size: Vector3 = Vector3(1.86, 0.69, 4.3)
+@export var body_center: Vector3 = Vector3(0.0, 0.04, -0.05)
+@export var cabin_size: Vector3 = Vector3(1.37, 0.42, 2.15)
+@export var cabin_center: Vector3 = Vector3(0.0, 0.6, -0.45)
+
+@export_group("Engine")
+@export var max_torque_nm: float = 550.0
+@export var max_power_kw: float = 302.0
+@export var idle_rpm: float = 900.0
+## Ab dieser Drehzahl liegt das volle Drehmoment an
+@export var torque_plateau_start_rpm: float = 2350.0
+## Bis hier hält der Motor seine volle Leistung, danach fällt sie bis zum Begrenzer ab
+@export var power_end_rpm: float = 7000.0
+@export var redline_rpm: float = 7600.0
+## Drehmoment unten herum als Anteil des Höchstwerts (Turbo/Sauger: wenig, Hybrid: viel)
+@export_range(0.0, 1.0) var low_end_torque: float = 0.6
+@export_range(0.5, 1.0) var drivetrain_efficiency: float = 0.88
+## Traktionsgrenze: höchste Antriebskraft am Boden (Newton)
+@export var max_drive_force: float = 11000.0
+## Anteil der Antriebskraft an der Vorderachse (0 = Heckantrieb, 0.4 = Allrad 40:60)
+@export_range(0.0, 1.0) var front_drive_share: float = 0.0
+## Allrad lässt sich abschalten (2WD wie beim M5: Taste U, nur unter 10 km/h): dann Heckantrieb und
+## Stabilitätshilfe aus
+@export var two_wd_switch: bool = false
+## Übersteuern beim Gasgeben im 2WD-Modus (statt power_oversteer, das zum Allrad passt)
+@export var two_wd_oversteer: float = 0.14
+## Abregelung (Höchstgeschwindigkeit)
+@export var top_speed_kmh: float = 250.0
+## Luftwiderstand und Anpressdruck
+@export var air_drag: float = 0.4
+@export var downforce: float = 0.5
+
+@export_group("Transmission")
+@export var gear_ratios: Array[float] = [4.806, 2.593, 1.701, 1.277, 1.0, 0.844, 0.671]
+@export var final_drive: float = 3.462
+@export var shift_up_rpm: float = 7200.0
+@export var shift_down_rpm: float = 3200.0
+@export var shift_time: float = 0.12
+## So weit dreht der Motor beim Anfahren über den Leerlauf (schleifende Kupplung)
+@export var launch_rpm: float = 3300.0
+
+@export_group("Brakes and handling")
+@export var brake_strength: float = 76.0
+@export var handbrake_strength: float = 30.0
+@export var power_oversteer: float = 0.12
+@export var drift_angle_limit: float = 15.0
+@export var max_steer_angle: float = 35.0
+@export var high_speed_steer_angle: float = 4.0
+
+@export_group("Sound")
+## Zylinderzahl und Bauart: bestimmt, wie viele Zündungen pro Umdrehung zu hören sind
+@export var cylinders: int = 6
+## Ungleichmäßigkeit zwischen den Zylindern (V8 mit Kreuzwelle: viel, Reihenmotor: wenig)
+@export_range(0.0, 1.0) var firing_unevenness: float = 0.1
+## Wie hart die Druckstöße klingen (größer = heller, rauer)
+@export var sound_sharpness: float = 18.0
+## Tiefe/Bass: Anteil des Grundtons pro Arbeitsspiel (V8 blubbert)
+@export_range(0.0, 1.0) var sound_rumble: float = 0.1
+## Turbo: Pfeifen, das mit dem Ladedruck steigt (0 = Saugmotor), und Zischen des
+## Abblasventils beim Gaswegnehmen
+@export_range(0.0, 1.0) var turbo_volume: float = 0.04
+@export_range(0.0, 1.0) var blow_off_volume: float = 0.0
+@export_range(0.0, 1.0) var intake_volume: float = 0.18
+## Klang je Motor: tiefe Auspuff-Resonanz (Hz), ihre Güte und ihr Anteil am Motorklang.
+## V8/V12 tief und breit (Brummen), Vierzylinder hoch und schmal (Kreischen).
+@export var body_resonance_hz: float = 92.0
+@export_range(0.5, 8.0) var body_resonance_q: float = 2.0
+@export_range(0.0, 1.0) var body_mix: float = 0.45
+## Klangfarbe: Grenzfrequenz des Tiefpasses im Stand (dumpf) und unter Last (hell), in Hz
+@export var tone_idle_hz: float = 750.0
+@export var tone_load_hz: float = 4200.0
+
+@export_group("Cockpit")
+## Augen des Fahrers im Auto (Cockpit-Sicht, Taste Tab), am Modell gemessen mit tools/cockpit_measure.gd
+@export var eye_position: Vector3 = Vector3(0.37, 0.72, -0.4)
+## Lenkrad: eigene Teile im Modell (Muster wie oben). Leer = das Lenkrad wird beim Laden aus dem
+## Innenraum herausgeschnitten: alles im Zylinder um die Lenksäule (Mitte, Halbmesser, Tiefe ± entlang
+## der Säule).
+@export var steering_wheel_parts: PackedStringArray = PackedStringArray()
+## Mitte des Lenkrads im Auto ((0, 0, 0) = Lenkrad dreht sich nicht mit)
+@export var steering_wheel_center: Vector3 = Vector3.ZERO
+@export var steering_wheel_radius: float = 0.19
+## 0 = nichts herausschneiden (nur die Lenkrad-Teile drehen sich)
+@export var steering_wheel_depth: float = 0.07
+## Neigung der Lenksäule gegen die Waagerechte (Grad)
+@export var steering_column_angle: float = 22.0
+## Lenkübersetzung: so viel weiter als die Vorderräder dreht sich das Lenkrad
+@export var steering_ratio: float = 14.0
+## Eigenes Kombiinstrument (Tacho und Drehzahl): Mitte, Größe (Breite × Höhe, Meter) und Neigung
+## (Grad, oben nach hinten). Position (0, 0, 0) = keins.
+@export var cluster_position: Vector3 = Vector3.ZERO
+@export var cluster_size: Vector2 = Vector2(0.3, 0.11)
+@export var cluster_tilt: float = 20.0
+## Spiegel (Bild von der Rückkamera): Mitte des Innenspiegels und des linken Außenspiegels (der rechte
+## ist gespiegelt), Größe Breite × Höhe. Position (0, 0, 0) = keiner.
+@export var mirror_inner_position: Vector3 = Vector3.ZERO
+@export var mirror_inner_size: Vector2 = Vector2(0.24, 0.06)
+@export var mirror_side_position: Vector3 = Vector3.ZERO
+@export var mirror_side_size: Vector2 = Vector2(0.15, 0.08)
+
+@export_group("Indicators and horn")
+## Blinker auf der linken Seite: vorne, hinten, Spiegel (rechts gespiegelt), am Modell gemessen. Vorne und
+## hinten leuchtet ein Bereich (indicator_radius) im Scheinwerfer- bzw. Rücklichtglas, sonst ein Kästchen.
+@export var indicator_points: PackedVector3Array = PackedVector3Array()
+@export var indicator_radius: float = 0.09
+## Eigene Blinkergläser im Modell (Materialnamen, Muster wie oben): leuchten ganz, Seite nach x.
+## Spiegelblinker gibt es nur, wo das Modell eigene hat.
+@export var indicator_materials: PackedStringArray = PackedStringArray()
+## Hupe: zwei Töne in Hz
+@export var horn_tones: Vector2 = Vector2(410.0, 510.0)
+
+@export_group("Exhaust")
+## Wie kräftig es beim Gaswegnehmen im Auspuff knallt (0 = kaum, 1 = sehr)
+@export_range(0.0, 1.0) var pops_strength: float = 0.5
+## Mitte der Endrohre im Auto (Nase zeigt nach +Z), am Modell gemessen. Dort entstehen die
+## kleinen Flammen.
+@export var exhaust_tips: PackedVector3Array = PackedVector3Array()
+
+@export_group("License plate")
+## Teile des Modells, die ein eigenes Kennzeichen zeigen (Material- oder Teilname enthält einen dieser
+## Begriffe; mit „=“ davor muss der Teilname genau so heißen, z. B. „=Object_60“): Sie werden immer
+## ausgeblendet, unser Schild kommt an ihre Stelle. „manufacturerpla“, weil manche Materialnamen
+## abgeschnitten sind (C 63: „…ManufacturerPla_0c896ed1“).
+@export var plate_hide: PackedStringArray = PackedStringArray(["manufacturerpla"])
+## Lage der Kennzeichen im Auto (Mitte, Nase zeigt nach +Z), Größe (Breite × Höhe in Metern) und
+## Neigung (Grad, positiv = oben nach hinten geneigt). Gemessen mit tools/plate_measure.gd und per
+## Foto geprüft. Position (0, 0, 0) = beim Laden aus dem Modell messen.
+@export var plate_front_position: Vector3 = Vector3.ZERO
+@export var plate_front_size: Vector2 = Vector2(0.52, 0.11)
+@export var plate_front_tilt: float = 0.0
+@export var plate_rear_position: Vector3 = Vector3.ZERO
+@export var plate_rear_size: Vector2 = Vector2(0.52, 0.11)
+@export var plate_rear_tilt: float = 0.0

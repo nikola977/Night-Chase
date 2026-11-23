@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cnpcmats0001"]
+
+[ext_resource type="Script" path="res://tools/npc_mats.gd" id="1_m"]
+
+[node name="NpcMats" type="Node3D"]
+script = ExtResource("1_m")

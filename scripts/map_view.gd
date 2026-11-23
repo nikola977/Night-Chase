@@ -1,0 +1,377 @@
+class_name MapView
+extends Control
+## Zeichnet die Karte: Gelände-Kacheln (MapTiles), Straßen, Route, Ziel und Auto.
+## Wird von der Minimap (dreht sich mit dem Auto) und der großen Karte benutzt.
+## Gezeichnet wird in Weltkoordinaten (Meter, x/z); eine Transform rechnet sie auf den
+## Bildschirm um. So müssen die Straßenlinien nicht in jedem Bild umgerechnet werden.
+
+var tiles: MapTiles
+var roads: RoadNetwork
+var navigation: Navigation
+var car: Car
+## Aussichtspunkte (entdeckte mit Kamera, auf der großen Karte auch die übrigen mit „?“)
+var viewpoints: Viewpoints
+## Entdecker-Karte: Nebel über allem, was man noch nicht gesehen hat (null oder aus = kein Nebel)
+var exploration: Exploration
+## Mitte der Ansicht (Welt x/z), Meter pro Pixel, Drehung der Karte (Bogenmaß)
+var center: Vector2 = Vector2.ZERO
+var meters_per_pixel: float = 2.0
+var rotation_angle: float = 0.0
+## Große Karte: Orte und noch nicht berechnete Verbindungen gestrichelt zeigen
+var show_unknown: bool = false
+## City map (second map): a top-down picture instead of the road network, and the
+## world rectangle (x/z) that picture covers
+var city_texture: Texture2D
+var city_bounds := Rect2()
+
+## Dunkler Kartenstil (Entwurf „Glas“). Die Route hat die Akzentfarbe (UiStyle.accent).
+const BACKGROUND := Color("#111721")
+const ROAD_COLOR := Color("#8D97A9")
+const UNKNOWN_COLOR := Color(1.0, 1.0, 1.0, 0.3)
+const TUNNEL_COLOR := Color(0.55, 0.6, 0.68, 0.9)
+## Autobahnen: breiter und in eigener Farbe
+const HIGHWAY_COLOR := Color("#D9A44E")
+const HIGHWAY_PIXELS: float = 6.5
+## Breite der Straßen und der Route in Bildpunkten
+const ROAD_PIXELS: float = 3.5
+const ROUTE_PIXELS: float = 5.0
+
+## Raststätten: Symbol nur bis zu diesem Maßstab (Meter pro Bildpunkt)
+const REST_MAX_METERS_PER_PIXEL: float = 24.0
+## Raststätten werden pro 4-km-Feld gesucht und gemerkt, höchstens zwei neue Felder pro Bild
+const REST_CELL: float = 4000.0
+
+var _rest_cells: Dictionary = {}  # Vector2i -> Array[Dictionary]
+var _view_rect := Rect2()
+
+## Ausgedünnte Straßenlinien pro Abschnitt (Welt x/z), aufgeteilt in Stücke:
+## [[Linie, true = Tunnel], ...]
+var _road_lines: Dictionary = {}  # RoadSegment -> Array
+var _route_line := PackedVector2Array()
+var _route_known := PackedByteArray()
+
+
+func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func set_navigation(nav: Navigation) -> void:
+	navigation = nav
+	navigation.route_changed.connect(_on_route_changed)
+
+
+func _on_route_changed() -> void:
+	_route_line = PackedVector2Array()
+	for p in navigation.route_points:
+		_route_line.append(Vector2(p.x, p.z))
+	_route_known = navigation.route_known
+
+
+func world_to_screen(p: Vector2) -> Vector2:
+	return size * 0.5 + (p - center).rotated(rotation_angle) / meters_per_pixel
+
+
+func screen_to_world(s: Vector2) -> Vector2:
+	return center + ((s - size * 0.5) * meters_per_pixel).rotated(-rotation_angle)
+
+
+## World (metres, x/z) to pixels on this control: one transform for the terrain, the
+## roads and the city picture
+func _world_transform() -> Transform2D:
+	return Transform2D(rotation_angle, size * 0.5) * Transform2D().scaled(Vector2.ONE / meters_per_pixel) \
+		* Transform2D(0.0, -center)
+
+
+func _draw() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), BACKGROUND)
+	if city_texture != null:
+		_draw_city()
+		_draw_markers()
+		return
+	if roads == null or tiles == null:
+		return
+	draw_set_transform_matrix(_world_transform())
+	var radius := size.length() * 0.5 * meters_per_pixel
+	var view_rect := Rect2(center - Vector2(radius, radius), Vector2(radius, radius) * 2.0)
+	_view_rect = view_rect
+	_draw_tiles(view_rect)
+	if show_unknown:
+		_draw_places(view_rect)
+	_draw_roads(view_rect)
+	if _fog_on():
+		_draw_fog(view_rect)
+	_draw_route()
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	_draw_markers()
+
+
+## City map: the picture drawn in world coordinates, so zooming and panning work like
+## on the road map
+func _draw_city() -> void:
+	draw_set_transform_matrix(_world_transform())
+	draw_texture_rect(city_texture, city_bounds, false)
+	draw_rect(city_bounds, Color(1.0, 1.0, 1.0, 0.22), false, 2.0 * meters_per_pixel)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+func _draw_tiles(view_rect: Rect2) -> void:
+	var level := tiles.level_for(meters_per_pixel)
+	var tile_size: float = tiles.level_sizes[level]
+	for tz in range(floori(view_rect.position.y / tile_size), floori(view_rect.end.y / tile_size) + 1):
+		for tx in range(floori(view_rect.position.x / tile_size), floori(view_rect.end.x / tile_size) + 1):
+			var texture := tiles.get_tile(level, tx, tz)
+			var rect := Rect2(tx * tile_size, tz * tile_size, tile_size, tile_size)
+			if texture == null and level + 1 < tiles.level_sizes.size():
+				# Noch nicht fertig: solange die gröbere Stufe zeigen
+				var coarse_size: float = tiles.level_sizes[level + 1]
+				var cx := floori(rect.position.x / coarse_size)
+				var cz := floori(rect.position.y / coarse_size)
+				var coarse := tiles.get_tile(level + 1, cx, cz)
+				if coarse:
+					var region := Rect2((rect.position - Vector2(cx, cz) * coarse_size) / coarse_size * tiles.tile_pixels,
+						Vector2.ONE * tile_size / coarse_size * tiles.tile_pixels)
+					draw_texture_rect_region(coarse, rect, region)
+				continue
+			if texture:
+				draw_texture_rect(texture, rect, false)
+
+
+func _fog_on() -> bool:
+	return exploration != null and exploration.enabled
+
+
+## Ist diese Stelle unter dem Nebel? (Symbole dort weglassen)
+func _hidden(p: Vector2) -> bool:
+	return _fog_on() and exploration.known_at(p) < 0.4
+
+
+## Nebel über Gelände und Straßen: je Entdecker-Kachel eine Textur (wo noch nichts gesehen
+## wurde, dieselbe gemeinsame Textur, das zeichnet Godot in einem Rutsch)
+func _draw_fog(view_rect: Rect2) -> void:
+	var tile := Exploration.TILE_METERS
+	var color := Color(exploration.fog_color, exploration.fog_alpha)
+	for tz in range(floori(view_rect.position.y / tile), floori(view_rect.end.y / tile) + 1):
+		for tx in range(floori(view_rect.position.x / tile), floori(view_rect.end.x / tile) + 1):
+			# Ein kleiner Überstand verhindert feine Fugen zwischen den Kacheln
+			var rect := Rect2(tx * tile, tz * tile, tile, tile).grow(meters_per_pixel * 0.5)
+			draw_texture_rect(exploration.fog_texture(Vector2i(tx, tz)), rect, false, color)
+
+
+func _draw_roads(view_rect: Rect2) -> void:
+	var width := ROAD_PIXELS * meters_per_pixel
+	var highway_width := HIGHWAY_PIXELS * meters_per_pixel
+	var lines: Array[PackedVector2Array] = []
+	var tunnels: Array[PackedVector2Array] = []
+	var highways: Array[PackedVector2Array] = []
+	var highway_tunnels: Array[PackedVector2Array] = []
+	var ramps: Array[PackedVector2Array] = []
+	for pair: Array in roads.loaded_segments(view_rect):
+		var segment: RoadSegment = pair[1]
+		if not _road_lines.has(segment):
+			_road_lines[segment] = _split_line(segment)
+		for part: Array in _road_lines[segment]:
+			if segment.kind == RoadSegment.Kind.HIGHWAY:
+				(highway_tunnels if part[1] else highways).append(part[0])
+			elif segment.kind == RoadSegment.Kind.RAMP:
+				ramps.append(part[0])
+			elif part[1]:
+				tunnels.append(part[0])
+			else:
+				lines.append(part[0])
+	for line in lines:
+		draw_polyline(line, ROAD_COLOR, width, true)
+	for line in ramps:
+		draw_polyline(line, HIGHWAY_COLOR.darkened(0.15), width * 0.7, true)
+	# Tunnel gestrichelt
+	var dash := maxf(25.0, 7.0 * meters_per_pixel)
+	for line in tunnels:
+		_draw_dashed_polyline(line, TUNNEL_COLOR, width, dash)
+	# Autobahnen obendrauf
+	for line in highways:
+		draw_polyline(line, HIGHWAY_COLOR, highway_width, true)
+	for line in highway_tunnels:
+		_draw_dashed_polyline(line, HIGHWAY_COLOR.darkened(0.25), highway_width, dash)
+	# Gemerkte Linien von Abschnitten, die es nicht mehr gibt, vergessen
+	if _road_lines.size() > lines.size() + 200:
+		_road_lines.clear()
+
+
+## Linie eines Abschnitts (jeder dritte Punkt), in Stücke geteilt: draußen und im Tunnel
+func _split_line(segment: RoadSegment) -> Array:
+	var parts: Array = []
+	var line := PackedVector2Array()
+	var in_tunnel := false
+	var n := segment.points.size()
+	var i := 0
+	while i < n:
+		var here := segment.tunnel[i] == 1
+		if here != in_tunnel and not line.is_empty():
+			line.append(Vector2(segment.points[i].x, segment.points[i].z))
+			parts.append([line, in_tunnel])
+			line = PackedVector2Array()
+		in_tunnel = here
+		line.append(Vector2(segment.points[i].x, segment.points[i].z))
+		# Normal jeden dritten Punkt, aber kein Tunnelanfang oder -ende überspringen
+		var next := mini(i + 3, n - 1) if i < n - 1 else n
+		for k in range(i + 1, mini(next, n)):
+			if (segment.tunnel[k] == 1) != in_tunnel:
+				next = k
+				break
+		i = next
+	if line.size() >= 2:
+		parts.append([line, in_tunnel])
+	return parts
+
+
+## Orte und noch nicht berechnete Verbindungen (große Karte)
+func _draw_places(view_rect: Rect2) -> void:
+	var cell_size := roads.cell_size
+	var dash := maxf(20.0, 8.0 * meters_per_pixel)
+	for cz in range(floori(view_rect.position.y / cell_size) - 1, floori(view_rect.end.y / cell_size) + 1):
+		for cx in range(floori(view_rect.position.x / cell_size) - 1, floori(view_rect.end.x / cell_size) + 1):
+			var cell := Vector2i(cx, cz)
+			var node: Variant = roads.node_at(cell)
+			if node == null:
+				continue
+			var p := Vector2((node as Vector3).x, (node as Vector3).z)
+			for option: Array in roads.edges_at(cell):
+				if not option[1]:
+					continue
+				var key: Vector3i = option[0]
+				if roads.edge_status(key) != 0:
+					continue
+				var other: Vector3 = roads.node_at(roads.edge_end_cell(key))
+				draw_dashed_line(p, Vector2(other.x, other.z), UNKNOWN_COLOR, 2.0 * meters_per_pixel, dash)
+			draw_circle(p, 4.0 * meters_per_pixel, Color(1, 1, 1, 0.8))
+
+
+func _draw_route() -> void:
+	if navigation == null or not navigation.has_target or _route_line.size() < 2:
+		return
+	var width := ROUTE_PIXELS * meters_per_pixel
+	var dash := maxf(15.0, 6.0 * meters_per_pixel)
+	# Berechnete Stücke durchgezogen, geschätzte (Luftlinie) gestrichelt
+	var start := 0
+	for i in range(1, _route_line.size()):
+		var known := _route_known[i] == 1
+		var end_of_run := i == _route_line.size() - 1 or (_route_known[i + 1] == 1) != known
+		if not end_of_run:
+			continue
+		var part := _route_line.slice(start, i + 1)
+		if known:
+			draw_polyline(part, UiStyle.accent, width, true)
+		else:
+			_draw_dashed_polyline(part, UiStyle.accent, width, dash)
+		start = i
+
+
+## Gestrichelte Linie über viele Punkte: Striche und Lücken laufen über die Punkte hinweg
+func _draw_dashed_polyline(points: PackedVector2Array, color: Color, width: float, dash: float) -> void:
+	var travelled := 0.0
+	for j in points.size() - 1:
+		var a := points[j]
+		var b := points[j + 1]
+		var length := a.distance_to(b)
+		var t := 0.0
+		while t < length:
+			# Wie weit bis zum nächsten Wechsel zwischen Strich und Lücke?
+			var phase := fmod(travelled + t, dash * 2.0)
+			var step := minf((dash - phase) if phase < dash else (dash * 2.0 - phase), length - t)
+			if phase < dash:
+				draw_line(a.lerp(b, t / length), a.lerp(b, (t + step) / length), color, width, true)
+			t += maxf(step, 0.01)
+		travelled += length
+
+
+func _draw_markers() -> void:
+	# The city map has no road network, so there are no dams, bridges or rest stops to look up
+	if show_unknown and roads != null and roads.world_gen != null:
+		_draw_landmarks()
+	_draw_rest_areas()
+	if viewpoints:
+		_draw_viewpoints()
+	# Ziel: weißer Ring mit Punkt in Akzentfarbe
+	if navigation and navigation.has_target:
+		var t := world_to_screen(Vector2(navigation.target.x, navigation.target.z))
+		draw_circle(t, 9.0, Color.WHITE)
+		draw_circle(t, 5.0, UiStyle.accent)
+	# Auto: Kreis in Akzentfarbe mit weißem Pfeil in Fahrtrichtung
+	if car:
+		var p := world_to_screen(Vector2(car.global_position.x, car.global_position.z))
+		var forward := Vector2(car.global_basis.z.x, car.global_basis.z.z).normalized().rotated(rotation_angle)
+		var side := Vector2(-forward.y, forward.x)
+		draw_circle(p, 15.0, Color(UiStyle.accent, 0.3))
+		draw_arc(p, 15.0, 0.0, TAU, 32, Color(UiStyle.accent, 0.9), 1.5, true)
+		var arrow := PackedVector2Array([p + forward * 9.0, p - forward * 6.0 + side * 6.5,
+			p - forward * 2.5, p - forward * 6.0 - side * 6.5])
+		draw_colored_polygon(arrow, Color.WHITE)
+
+
+## Namen besonderer Orte auf der großen Karte: Talsperren (nur schon berechnete, sonst würde die
+## Karte beim Verschieben Stauseen ausrechnen)
+func _draw_landmarks() -> void:
+	var visible_rect := Rect2(Vector2.ZERO, size).grow(60.0)
+	for lake: WorldGen.Lake in roads.world_gen.cached_reservoirs_near(_view_rect):
+		var p := world_to_screen(lake.center)
+		if not visible_rect.has_point(p) or _hidden(lake.center):
+			continue
+		var text := "Dam %s" % roads.highways.place_name(lake.name_cell)
+		UiStyle.draw_text(self, text, p + Vector2(1.5, 1.5), 14, "semibold", Color(0.0, 0.05, 0.12, 0.8), 0.5)
+		UiStyle.draw_text(self, text, p, 14, "semibold", Color(0.78, 0.9, 1.0), 0.5)
+	# Landmarken-Brücken (Bogen, Hängebrücke)
+	for bridge: Dictionary in roads.landmark_bridges(_view_rect):
+		var p := world_to_screen(bridge["position"])
+		if not visible_rect.has_point(p) or _hidden(bridge["position"]):
+			continue
+		draw_circle(p, 4.0, Color(0.95, 0.85, 0.6))
+		UiStyle.draw_text(self, bridge["name"], p + Vector2(1.5, -6.5), 13, "semibold", Color(0.05, 0.04, 0.02, 0.8), 0.5)
+		UiStyle.draw_text(self, bridge["name"], p + Vector2(0.0, -8.0), 13, "semibold", Color(1.0, 0.92, 0.72), 0.5)
+
+
+## Raststätten: Zapfsäule im dunklen Kreis (an der Parkplatz-Mitte)
+func _draw_rest_areas() -> void:
+	if roads == null or roads.highways == null or meters_per_pixel > REST_MAX_METERS_PER_PIXEL:
+		return
+	var visible_rect := Rect2(Vector2.ZERO, size).grow(12.0)
+	var budget := 2
+	for cz in range(floori(_view_rect.position.y / REST_CELL), floori(_view_rect.end.y / REST_CELL) + 1):
+		for cx in range(floori(_view_rect.position.x / REST_CELL), floori(_view_rect.end.x / REST_CELL) + 1):
+			var cell := Vector2i(cx, cz)
+			if not _rest_cells.has(cell):
+				if budget == 0:
+					queue_redraw()
+					continue
+				budget -= 1
+				_rest_cells[cell] = roads.highways.rest_areas_in(Rect2(cell * REST_CELL, Vector2.ONE * REST_CELL))
+			for rest: Dictionary in _rest_cells[cell]:
+				var c: Vector3 = rest["center"]
+				var p := world_to_screen(Vector2(c.x, c.z))
+				if not visible_rect.has_point(p) or _hidden(Vector2(c.x, c.z)):
+					continue
+				draw_circle(p, 11.0, Color(0.06, 0.08, 0.12, 0.9))
+				draw_arc(p, 11.0, 0.0, TAU, 24, Color(HIGHWAY_COLOR, 0.95), 1.5, true)
+				UiIcons.draw(self, "fuel", p, 13.0, Color.WHITE, 1.4)
+				# Raststätte = Parkplatz, also ein Treffpunkt für Autos
+				UiStyle.draw_text(self, "MEET", p + Vector2(0.0, 25.0), 12, "semibold", Color(1.0, 0.82, 0.3), 0.5)
+
+
+## Entdeckte Aussichtspunkte: Kamera-Symbol im dunklen Kreis. Unentdeckte (nur große Karte):
+## grauer Kreis mit „?“.
+func _draw_viewpoints() -> void:
+	var visible_rect := Rect2(Vector2.ZERO, size).grow(12.0)
+	for spot: Dictionary in viewpoints.map_spots:
+		if not spot["found"] and not show_unknown:
+			continue
+		var p := world_to_screen(spot["position"])
+		# Aussicht an einer Raststätte: kleines Abzeichen neben der Zapfsäule
+		if spot.get("rest", false):
+			p += Vector2(13.0, -13.0)
+		if not visible_rect.has_point(p):
+			continue
+		if spot["found"]:
+			draw_circle(p, 11.0, Color(0.06, 0.08, 0.12, 0.9))
+			draw_arc(p, 11.0, 0.0, TAU, 24, Color(UiStyle.accent, 0.9), 1.5, true)
+			UiIcons.draw(self, "camera", p, 13.0, Color.WHITE, 1.4)
+		else:
+			draw_circle(p, 10.0, Color(0.3, 0.33, 0.38, 0.85))
+			UiStyle.draw_text(self, "?", p + Vector2(0.0, 5.0), 14, "semibold", Color(1, 1, 1, 0.85), 0.5)

@@ -1,0 +1,905 @@
+[gd_scene format=4 uid="uid://b78epgyoxwnei"]
+
+[ext_resource type="Script" uid="uid://bw0cjixxxdeq7" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://dh85u5s374c4c" path="res://scripts/world_gen.gd" id="2_worldgen"]
+[ext_resource type="PackedScene" path="res://scenes/car.tscn" id="3_car"]
+[ext_resource type="Script" uid="uid://c2t60lr5ldh1n" path="res://scripts/follow_camera.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://b46g18ct5uv0e" path="res://scripts/terrain_manager.gd" id="6_terrain"]
+[ext_resource type="Script" uid="uid://qkhwoh446mlp" path="res://scripts/horizon_ring.gd" id="7_ring"]
+[ext_resource type="Script" uid="uid://cgb14l7oopiss" path="res://scripts/fps_display.gd" id="8_fps"]
+[ext_resource type="Script" uid="uid://bsup4vrypcram" path="res://scripts/debug_tools.gd" id="9_debug"]
+[ext_resource type="Shader" uid="uid://crpx4a1858v3d" path="res://shaders/terrain.gdshader" id="10_terrain_shader"]
+[ext_resource type="Texture2D" uid="uid://b13ie7l8y5s2f" path="res://assets/textures/leafy_grass/leafy_grass_diff_1k.jpg" id="11_grass_a"]
+[ext_resource type="Texture2D" uid="uid://kxlnh8s6uthf" path="res://assets/textures/leafy_grass/leafy_grass_nor_gl_1k.jpg" id="12_grass_n"]
+[ext_resource type="Texture2D" uid="uid://dplsut3l6gkae" path="res://assets/textures/forrest_ground_01/forrest_ground_01_diff_1k.jpg" id="13_dirt_a"]
+[ext_resource type="Texture2D" uid="uid://c62msq8vv0r8b" path="res://assets/textures/forrest_ground_01/forrest_ground_01_nor_gl_1k.jpg" id="14_dirt_n"]
+[ext_resource type="Texture2D" uid="uid://c3m8x4s48t4r" path="res://assets/textures/rock_face/rock_face_diff_1k.jpg" id="15_rock_a"]
+[ext_resource type="Texture2D" uid="uid://8ils1pu6civ6" path="res://assets/textures/rock_face/rock_face_nor_gl_1k.jpg" id="16_rock_n"]
+[ext_resource type="Texture2D" uid="uid://i8fd4hl02gb8" path="res://assets/textures/snow_02/snow_02_diff_1k.jpg" id="17_snow_a"]
+[ext_resource type="Texture2D" uid="uid://qtey2bx7dn4u" path="res://assets/textures/snow_02/snow_02_nor_gl_1k.jpg" id="18_snow_n"]
+[ext_resource type="Shader" uid="uid://ckusxe4f3jass" path="res://shaders/sky.gdshader" id="19_sky"]
+[ext_resource type="Script" uid="uid://bf0x3ekjps5ck" path="res://scripts/day_night.gd" id="20_daynight"]
+[ext_resource type="Script" uid="uid://b2c700m3rg21f" path="res://scripts/road_network.gd" id="21_roads"]
+[ext_resource type="Shader" uid="uid://c03khvweoyyir" path="res://shaders/road.gdshader" id="22_road_shader"]
+[ext_resource type="Texture2D" uid="uid://o13noobjhifi" path="res://assets/textures/asphalt_02/asphalt_02_diff_1k.jpg" id="23_asphalt_a"]
+[ext_resource type="Texture2D" uid="uid://cnxacftporgiy" path="res://assets/textures/asphalt_02/asphalt_02_nor_gl_1k.jpg" id="24_asphalt_n"]
+[ext_resource type="Texture2D" uid="uid://dk1rdr803s3qn" path="res://assets/textures/gravel_road/gravel_road_diff_1k.jpg" id="25_gravel_a"]
+[ext_resource type="Texture2D" uid="uid://dlcaxcn70vptm" path="res://assets/textures/gravel_road/gravel_road_nor_gl_1k.jpg" id="26_gravel_n"]
+[ext_resource type="Shader" uid="uid://d0xq56txblm5p" path="res://shaders/water.gdshader" id="27_water_shader"]
+[ext_resource type="Script" uid="uid://mjqmveiiiyvi" path="res://scripts/water_manager.gd" id="28_water"]
+[ext_resource type="Shader" uid="uid://drg67o678c68c" path="res://shaders/foliage.gdshader" id="29_foliage"]
+[ext_resource type="Shader" uid="uid://b6i8qhnyb5b2y" path="res://shaders/grass.gdshader" id="30_grass"]
+[ext_resource type="Script" uid="uid://dqyia0hwfp7gm" path="res://scripts/grass_manager.gd" id="31_grass"]
+[ext_resource type="Script" uid="uid://i5ovms47irdn" path="res://scripts/speedometer.gd" id="50_speedo"]
+[ext_resource type="Script" uid="uid://c3mybwi2ax8ck" path="res://scripts/garage.gd" id="51_garage"]
+[ext_resource type="Resource" path="res://cars/m2.tres" id="52_m2"]
+[ext_resource type="Resource" path="res://cars/e30.tres" id="53_e30"]
+[ext_resource type="Resource" path="res://cars/e92.tres" id="54_e92"]
+[ext_resource type="Resource" path="res://cars/f90.tres" id="55_f90"]
+[ext_resource type="Resource" path="res://cars/g90.tres" id="56_g90"]
+[ext_resource type="Script" uid="uid://dxc3fj6usvhcm" path="res://scripts/car_profile.gd" id="57_profile"]
+[ext_resource type="Script" uid="uid://bv1ab08bti3om" path="res://scripts/map_tiles.gd" id="60_tiles"]
+[ext_resource type="Script" uid="uid://bwc84uejcwdme" path="res://scripts/navigation.gd" id="61_nav"]
+[ext_resource type="Script" uid="uid://b53aw1xhox0hc" path="res://scripts/minimap.gd" id="62_minimap"]
+[ext_resource type="Script" uid="uid://brbdw0nbhimbo" path="res://scripts/nav_banner.gd" id="63_banner"]
+[ext_resource type="Script" uid="uid://cs53g4fier10w" path="res://scripts/big_map.gd" id="64_bigmap"]
+[ext_resource type="Script" uid="uid://dac8fabpnjnju" path="res://scripts/weather.gd" id="65_weather"]
+[ext_resource type="Script" uid="uid://c37h1ghabmflw" path="res://scripts/precipitation.gd" id="66_precip"]
+[ext_resource type="Script" uid="uid://c27yo46jfalju" path="res://scripts/weather_sound.gd" id="67_wsound"]
+[ext_resource type="Shader" uid="uid://dcmyqtrlcrs80" path="res://shaders/foliage_bare.gdshader" id="68_bare"]
+[ext_resource type="Script" uid="uid://wkns3j35njh0" path="res://scripts/tunnel_effects.gd" id="69_tunnelfx"]
+[ext_resource type="Script" uid="uid://cs7a0hbdt6ub0" path="res://scripts/status_chips.gd" id="70_chips"]
+[ext_resource type="Script" uid="uid://bwhufg67ke4tc" path="res://scripts/toasts.gd" id="71_toasts"]
+[ext_resource type="Shader" uid="uid://cqi0df0gmrutx" path="res://shaders/reflector.gdshader" id="73_reflector"]
+[ext_resource type="Script" uid="uid://681hsvmipp0s" path="res://scripts/viewpoints.gd" id="74_viewpoints"]
+[ext_resource type="Script" uid="uid://cm37wwmyvvsby" path="res://scripts/photo_mode.gd" id="75_photo"]
+[ext_resource type="Script" uid="uid://cem67qyc04134" path="res://scripts/traffic.gd" id="76_traffic"]
+[ext_resource type="Script" uid="uid://cmbwxekvmeov5" path="res://scripts/game_settings.gd" id="77_settings"]
+[ext_resource type="Script" uid="uid://b21r0xk2g2lcv" path="res://scripts/pause_menu.gd" id="78_pause"]
+[ext_resource type="Resource" path="res://cars/m4csl.tres" id="79_m4csl"]
+[ext_resource type="Resource" path="res://cars/sl65.tres" id="80_sl65"]
+[ext_resource type="Resource" path="res://cars/c63.tres" id="81_c63"]
+[ext_resource type="Shader" uid="uid://b1us5nm31ics4" path="res://shaders/horizon.gdshader" id="82_horizon_shader"]
+[ext_resource type="Script" uid="uid://bwf2whiyai3fh" path="res://scripts/speed_limits.gd" id="83_limits"]
+[ext_resource type="Script" uid="uid://028qy0jk0ae" path="res://scripts/cruise_control.gd" id="84_cruise"]
+[ext_resource type="Script" uid="uid://cn576uvcf460u" path="res://scripts/race.gd" id="85_race"]
+[ext_resource type="Script" uid="uid://dcws2k7wdgeqo" path="res://scripts/passby_sound.gd" id="86_passby"]
+[ext_resource type="Script" uid="uid://dgexe2p8xh3hn" path="res://scripts/open_windows.gd" id="87_windows"]
+[ext_resource type="Script" uid="uid://b81w8jk5lhpks" path="res://scripts/puddles.gd" id="88_puddles"]
+[ext_resource type="Script" uid="uid://qx2ahbi0e3tk" path="res://scripts/autumn_leaves.gd" id="89_leaves"]
+[ext_resource type="Script" uid="uid://ce1kiq0usfrl4" path="res://scripts/dyno.gd" id="90_dyno"]
+[ext_resource type="Resource" path="res://cars/giulietta.tres" id="90_giulietta"]
+[ext_resource type="Script" uid="uid://bwvc6yxiv0gub" path="res://scripts/rewind.gd" id="90_rewind"]
+[ext_resource type="Script" uid="uid://dqsyick6huja5" path="res://scripts/fast_travel.gd" id="91_fasttravel"]
+[ext_resource type="Resource" path="res://cars/mx5.tres" id="91_mx5"]
+[ext_resource type="Script" uid="uid://d2cecnkag7fqq" path="res://scripts/sound_mix.gd" id="91_soundmix"]
+[ext_resource type="Script" uid="uid://bulx3jid8r8r8" path="res://scripts/waterfalls.gd" id="91_waterfalls"]
+[ext_resource type="Script" uid="uid://bwrme7n3qlpdl" path="res://scripts/lake_life.gd" id="92_lakelife"]
+[ext_resource type="Resource" path="res://cars/wrx.tres" id="92_wrx"]
+[ext_resource type="Script" uid="uid://b2vdr5xicw7rt" path="res://scripts/exploration.gd" id="93_explore"]
+[ext_resource type="Resource" path="res://cars/urus.tres" id="93_urus"]
+[ext_resource type="Resource" path="res://cars/caprice.tres" id="94_caprice"]
+[ext_resource type="Script" uid="uid://b47vjldsrjajw" path="res://scripts/chill_mode.gd" id="94_chill"]
+[ext_resource type="Resource" path="res://cars/challenger.tres" id="95_challenger"]
+[ext_resource type="Script" uid="uid://c5mu2y4u3o8b4" path="res://scripts/car_reset.gd" id="95_reset"]
+[ext_resource type="Resource" path="res://cars/corvette.tres" id="96_corvette"]
+[ext_resource type="Script" uid="uid://7wctksx7othx" path="res://scripts/loading_screen.gd" id="96_loading"]
+[ext_resource type="Script" uid="uid://de8ey41nw036s" path="res://scripts/key_hints.gd" id="97_hints"]
+[ext_resource type="Resource" path="res://cars/svj.tres" id="97_svj"]
+[ext_resource type="Resource" path="res://cars/gt3rs.tres" id="98_gt3rs"]
+[ext_resource type="Script" uid="uid://q0is6k7sol8i" path="res://scripts/whats_new.gd" id="98_whatsnew"]
+[ext_resource type="Script" uid="uid://dt2hc7pi455wv" path="res://scripts/city_map.gd" id="99_citymap"]
+[ext_resource type="Resource" path="res://cars/supra.tres" id="99_supra"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_clouds"]
+frequency = 0.008
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_clouds"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_clouds")
+seamless = true
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sky"]
+shader = ExtResource("19_sky")
+shader_parameter/sun_direction = Vector3(0, 1, 0)
+shader_parameter/moon_direction = Vector3(0, -1, 0)
+shader_parameter/zenith_color = Color(0.16, 0.4, 0.85, 1)
+shader_parameter/horizon_color = Color(0.66, 0.8, 0.95, 1)
+shader_parameter/ground_color = Color(0.12, 0.13, 0.14, 1)
+shader_parameter/sun_glow_color = Color(1, 0.9, 0.7, 1)
+shader_parameter/sun_glow_strength = 0.5
+shader_parameter/sun_disk_color = Color(1, 0.95, 0.85, 1)
+shader_parameter/sun_disk_energy = 40.0
+shader_parameter/sun_size = 0.014
+shader_parameter/moon_size = 0.022
+shader_parameter/night_amount = 0.0
+shader_parameter/star_brightness = 2.5
+shader_parameter/moon_phase = 0.5
+shader_parameter/meteors = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/meteor_dirs = PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/light_pollution = 0.0
+shader_parameter/glow_direction = Vector3(1, 0, 0)
+shader_parameter/cloud_noise = SubResource("NoiseTexture2D_clouds")
+shader_parameter/cloud_coverage = 0.45
+shader_parameter/cloud_scale = 0.25
+shader_parameter/cloud_wind = Vector2(0.0035, 0.0015)
+shader_parameter/cloud_light_color = Color(1, 1, 1, 1)
+shader_parameter/cloud_shadow_color = Color(0.55, 0.6, 0.7, 1)
+shader_parameter/sky_energy = 1.0
+shader_parameter/rainbow = 0.0
+shader_parameter/aurora = 0.0
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ShaderMaterial_sky")
+process_mode = 2
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 4
+ssao_enabled = true
+ssao_radius = 1.5
+ssao_intensity = 1.5
+glow_enabled = true
+glow_intensity = 0.6
+glow_bloom = 0.04
+glow_hdr_threshold = 1.2
+fog_enabled = true
+fog_light_color = Color(0.62, 0.72, 0.86, 1)
+fog_density = 6e-05
+fog_aerial_perspective = 0.8
+fog_sky_affect = 0.3
+volumetric_fog_density = 0.0006
+volumetric_fog_anisotropy = 0.6
+volumetric_fog_length = 250.0
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_variation"]
+frequency = 0.006
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_variation"]
+noise = SubResource("FastNoiseLite_variation")
+seamless = true
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
+render_priority = 0
+shader = ExtResource("10_terrain_shader")
+shader_parameter/grass_albedo = ExtResource("11_grass_a")
+shader_parameter/grass_normal = ExtResource("12_grass_n")
+shader_parameter/dirt_albedo = ExtResource("13_dirt_a")
+shader_parameter/dirt_normal = ExtResource("14_dirt_n")
+shader_parameter/rock_albedo = ExtResource("15_rock_a")
+shader_parameter/rock_normal = ExtResource("16_rock_n")
+shader_parameter/snow_albedo = ExtResource("17_snow_a")
+shader_parameter/snow_normal = ExtResource("18_snow_n")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_scale = 4.0
+shader_parameter/dirt_scale = 4.0
+shader_parameter/rock_scale = 10.0
+shader_parameter/snow_scale = 6.0
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_recolor = 0.85
+shader_parameter/dry_grass_color = Color(0.5, 0.5, 0.22, 1)
+shader_parameter/rock_color = Color(0.6, 0.58, 0.55, 1)
+shader_parameter/rock_recolor = 0.7
+shader_parameter/alpine_color = Color(0.42, 0.4, 0.3, 1)
+shader_parameter/rock_slope_start = 0.16
+shader_parameter/rock_slope_end = 0.28
+shader_parameter/snow_blend = 120.0
+shader_parameter/tree_line = 800.0
+shader_parameter/far_mode = false
+shader_parameter/sink_into_chunks = false
+shader_parameter/mask_origin = Vector2(0, 0)
+shader_parameter/mask_size = 1.0
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_waves_a"]
+frequency = 0.03
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_waves_a"]
+noise = SubResource("FastNoiseLite_waves_a")
+seamless = true
+as_normal_map = true
+bump_strength = 6.0
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_waves_b"]
+seed = 7
+frequency = 0.05
+fractal_octaves = 2
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_waves_b"]
+noise = SubResource("FastNoiseLite_waves_b")
+seamless = true
+as_normal_map = true
+bump_strength = 4.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
+render_priority = 1
+shader = ExtResource("27_water_shader")
+shader_parameter/wave_normal_a = SubResource("NoiseTexture2D_waves_a")
+shader_parameter/wave_normal_b = SubResource("NoiseTexture2D_waves_b")
+shader_parameter/shallow_color = Color(0.16, 0.3, 0.28, 1)
+shader_parameter/deep_color = Color(0.015, 0.05, 0.07, 1)
+shader_parameter/foam_color = Color(0.85, 0.88, 0.9, 1)
+shader_parameter/deep_distance = 5.0
+shader_parameter/foam_width = 0.35
+shader_parameter/wave_scale = 12.0
+shader_parameter/wave_strength = 0.5
+shader_parameter/flow_speed = 1.3
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_foliage"]
+render_priority = 0
+shader = ExtResource("29_foliage")
+shader_parameter/wind_strength = 1.0
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/translucency = Color(0.18, 0.24, 0.08, 1)
+shader_parameter/leaf_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/deciduous = false
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rock"]
+albedo_color = Color(0.82, 0.8, 0.77, 1)
+albedo_texture = ExtResource("15_rock_a")
+roughness = 0.9
+normal_enabled = true
+normal_texture = ExtResource("16_rock_n")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bare"]
+render_priority = 0
+shader = ExtResource("68_bare")
+shader_parameter/wind_strength = 1.0
+shader_parameter/leaf_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/twig_density = 0.3
+shader_parameter/bark_color = Color(0.24, 0.2, 0.17, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_road"]
+render_priority = 0
+shader = ExtResource("22_road_shader")
+shader_parameter/asphalt_albedo = ExtResource("23_asphalt_a")
+shader_parameter/asphalt_normal = ExtResource("24_asphalt_n")
+shader_parameter/gravel_albedo = ExtResource("25_gravel_a")
+shader_parameter/gravel_normal = ExtResource("26_gravel_n")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_scale = 4.0
+shader_parameter/shoulder_width = 1.5
+shader_parameter/grass_start = 0.55
+shader_parameter/patch_spacing = 37.0
+shader_parameter/patch_share = 0.3
+shader_parameter/road_width = 9.0
+shader_parameter/asphalt_scale = 3.5
+shader_parameter/gravel_scale = 2.5
+shader_parameter/line_color = Color(0.92, 0.92, 0.88, 1)
+shader_parameter/dash_length = 6.0
+shader_parameter/dash_gap = 12.0
+shader_parameter/center_line_width = 0.12
+shader_parameter/edge_line_width = 0.15
+shader_parameter/edge_line_inset = 0.3
+shader_parameter/edge_line_inset_right = -1.0
+shader_parameter/aux_edge_inset = 1.25
+shader_parameter/lane_profile = 0
+shader_parameter/hw_shoulder = 2.5
+shader_parameter/hw_lane = 3.75
+shader_parameter/hw_inner = 0.75
+shader_parameter/puddle_amount = 0.3
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_concrete"]
+albedo_color = Color(0.58, 0.57, 0.54, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rail"]
+cull_mode = 2
+albedo_color = Color(0.62, 0.64, 0.66, 1)
+metallic = 0.7
+roughness = 0.4
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_highway"]
+render_priority = 0
+shader = ExtResource("22_road_shader")
+shader_parameter/asphalt_albedo = ExtResource("23_asphalt_a")
+shader_parameter/asphalt_normal = ExtResource("24_asphalt_n")
+shader_parameter/gravel_albedo = ExtResource("25_gravel_a")
+shader_parameter/gravel_normal = ExtResource("26_gravel_n")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_scale = 4.0
+shader_parameter/shoulder_width = 1.5
+shader_parameter/grass_start = 0.55
+shader_parameter/patch_spacing = 37.0
+shader_parameter/patch_share = 0.3
+shader_parameter/road_width = 9.0
+shader_parameter/asphalt_scale = 3.5
+shader_parameter/gravel_scale = 2.5
+shader_parameter/line_color = Color(0.92, 0.92, 0.88, 1)
+shader_parameter/dash_length = 6.0
+shader_parameter/dash_gap = 12.0
+shader_parameter/center_line_width = 0.12
+shader_parameter/edge_line_width = 0.15
+shader_parameter/edge_line_inset = 0.3
+shader_parameter/edge_line_inset_right = -1.0
+shader_parameter/aux_edge_inset = 1.25
+shader_parameter/lane_profile = 1
+shader_parameter/hw_shoulder = 2.5
+shader_parameter/hw_lane = 3.75
+shader_parameter/hw_inner = 0.75
+shader_parameter/puddle_amount = 0.3
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ramp"]
+render_priority = 0
+shader = ExtResource("22_road_shader")
+shader_parameter/asphalt_albedo = ExtResource("23_asphalt_a")
+shader_parameter/asphalt_normal = ExtResource("24_asphalt_n")
+shader_parameter/gravel_albedo = ExtResource("25_gravel_a")
+shader_parameter/gravel_normal = ExtResource("26_gravel_n")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_scale = 4.0
+shader_parameter/shoulder_width = 1.5
+shader_parameter/grass_start = 0.55
+shader_parameter/patch_spacing = 37.0
+shader_parameter/patch_share = 0.3
+shader_parameter/road_width = 9.0
+shader_parameter/asphalt_scale = 3.5
+shader_parameter/gravel_scale = 2.5
+shader_parameter/line_color = Color(0.92, 0.92, 0.88, 1)
+shader_parameter/dash_length = 6.0
+shader_parameter/dash_gap = 12.0
+shader_parameter/center_line_width = 0.12
+shader_parameter/edge_line_width = 0.15
+shader_parameter/edge_line_inset = 0.3
+shader_parameter/edge_line_inset_right = -1.0
+shader_parameter/aux_edge_inset = 1.25
+shader_parameter/lane_profile = 2
+shader_parameter/hw_shoulder = 2.5
+shader_parameter/hw_lane = 3.75
+shader_parameter/hw_inner = 0.75
+shader_parameter/puddle_amount = 0.3
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_parking"]
+render_priority = 0
+shader = ExtResource("22_road_shader")
+shader_parameter/asphalt_albedo = ExtResource("23_asphalt_a")
+shader_parameter/asphalt_normal = ExtResource("24_asphalt_n")
+shader_parameter/gravel_albedo = ExtResource("25_gravel_a")
+shader_parameter/gravel_normal = ExtResource("26_gravel_n")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_scale = 4.0
+shader_parameter/shoulder_width = 1.5
+shader_parameter/grass_start = 0.55
+shader_parameter/patch_spacing = 37.0
+shader_parameter/patch_share = 0.3
+shader_parameter/road_width = 9.0
+shader_parameter/asphalt_scale = 3.5
+shader_parameter/gravel_scale = 2.5
+shader_parameter/line_color = Color(0.92, 0.92, 0.88, 1)
+shader_parameter/dash_length = 6.0
+shader_parameter/dash_gap = 12.0
+shader_parameter/center_line_width = 0.12
+shader_parameter/edge_line_width = 0.15
+shader_parameter/edge_line_inset = 0.3
+shader_parameter/edge_line_inset_right = -1.0
+shader_parameter/aux_edge_inset = 1.25
+shader_parameter/lane_profile = 3
+shader_parameter/hw_shoulder = 2.5
+shader_parameter/hw_lane = 3.75
+shader_parameter/hw_inner = 0.75
+shader_parameter/puddle_amount = 0.3
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_post"]
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+roughness = 0.6
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_reflector"]
+render_priority = 0
+shader = ExtResource("73_reflector")
+shader_parameter/color = Color(1, 0.92, 0.8, 1)
+shader_parameter/retro_strength = 40.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tunnel"]
+cull_mode = 2
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lamp"]
+albedo_color = Color(0, 0, 0, 1)
+emission_enabled = true
+emission = Color(1, 0.86, 0.64, 1)
+emission_energy_multiplier = 8.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grass"]
+render_priority = 0
+shader = ExtResource("30_grass")
+shader_parameter/root_color = Color(0.14, 0.22, 0.06, 1)
+shader_parameter/tip_color = Color(0.38, 0.55, 0.16, 1)
+shader_parameter/dry_color = Color(0.55, 0.52, 0.25, 1)
+shader_parameter/wind_strength = 1.0
+shader_parameter/fade_start = 36.0
+shader_parameter/fade_end = 54.0
+shader_parameter/spring_tip_color = Color(0.42, 0.66, 0.16, 1)
+shader_parameter/autumn_tip_color = Color(0.55, 0.47, 0.2, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ring"]
+render_priority = 0
+shader = ExtResource("82_horizon_shader")
+shader_parameter/variation_noise = SubResource("NoiseTexture2D_variation")
+shader_parameter/grass_scale = 4.0
+shader_parameter/dirt_scale = 4.0
+shader_parameter/rock_scale = 10.0
+shader_parameter/snow_scale = 6.0
+shader_parameter/grass_color = Color(0.27, 0.45, 0.1, 1)
+shader_parameter/grass_recolor = 0.85
+shader_parameter/dry_grass_color = Color(0.5, 0.5, 0.22, 1)
+shader_parameter/rock_color = Color(0.6, 0.58, 0.55, 1)
+shader_parameter/rock_recolor = 0.7
+shader_parameter/alpine_color = Color(0.42, 0.4, 0.3, 1)
+shader_parameter/rock_slope_start = 0.16
+shader_parameter/rock_slope_end = 0.28
+shader_parameter/snow_blend = 120.0
+shader_parameter/tree_line = 800.0
+shader_parameter/far_mode = true
+shader_parameter/sink_into_chunks = true
+shader_parameter/mask_origin = Vector2(0, 0)
+shader_parameter/mask_size = 1.0
+shader_parameter/tunnel_origin = Vector2(0, 0)
+shader_parameter/tunnel_size = 1.0
+
+[sub_resource type="Resource" id="WorldGen_main"]
+script = ExtResource("2_worldgen")
+
+[node name="Main" type="Node3D" unique_id=626529890 node_paths=PackedStringArray("terrain", "horizon", "car", "loading_screen", "debug_tools", "day_night", "garage", "map_tiles", "roads", "water", "grass", "weather", "whats_new")]
+script = ExtResource("1_game")
+world_gen = SubResource("WorldGen_main")
+terrain = NodePath("Terrain")
+horizon = NodePath("HorizonRing")
+car = NodePath("Car")
+loading_screen = NodePath("Loading/LoadingScreen")
+debug_tools = NodePath("DebugTools")
+day_night = NodePath("DayNight")
+garage = NodePath("Garage")
+map_tiles = NodePath("MapTiles")
+roads = NodePath("Roads")
+water = NodePath("Water")
+grass = NodePath("Grass")
+weather = NodePath("Weather")
+whats_new = NodePath("WhatsNew")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1501345909]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=764456529]
+transform = Transform3D(0.866, -0.383, 0.3214, 0, 0.6428, 0.766, -0.5, -0.6634, 0.5567, 0, 50, 0)
+shadow_enabled = true
+shadow_bias = 0.04
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 300.0
+
+[node name="DayNight" type="Node" parent="." unique_id=135045350 node_paths=PackedStringArray("sun", "world_environment", "weather", "roads")]
+script = ExtResource("20_daynight")
+sun = NodePath("../Sun")
+world_environment = NodePath("../WorldEnvironment")
+weather = NodePath("../Weather")
+roads = NodePath("../Roads")
+
+[node name="Terrain" type="Node3D" parent="." unique_id=1098644994]
+process_mode = 3
+script = ExtResource("6_terrain")
+terrain_material = SubResource("ShaderMaterial_terrain")
+water_material = SubResource("ShaderMaterial_water")
+foliage_material = SubResource("ShaderMaterial_foliage")
+rock_material = SubResource("StandardMaterial3D_rock")
+bare_tree_material = SubResource("ShaderMaterial_bare")
+
+[node name="Roads" type="Node3D" parent="." unique_id=91982645]
+process_mode = 3
+script = ExtResource("21_roads")
+road_material = SubResource("ShaderMaterial_road")
+bridge_material = SubResource("StandardMaterial3D_concrete")
+rail_material = SubResource("StandardMaterial3D_rail")
+highway_material = SubResource("ShaderMaterial_highway")
+ramp_material = SubResource("ShaderMaterial_ramp")
+parking_material = SubResource("ShaderMaterial_parking")
+post_material = SubResource("StandardMaterial3D_post")
+reflector_material = SubResource("ShaderMaterial_reflector")
+tunnel_material = SubResource("StandardMaterial3D_tunnel")
+lamp_material = SubResource("StandardMaterial3D_lamp")
+
+[node name="Water" type="Node3D" parent="." unique_id=737382635]
+process_mode = 3
+script = ExtResource("28_water")
+water_material = SubResource("ShaderMaterial_water")
+
+[node name="Grass" type="Node3D" parent="." unique_id=16220799]
+process_mode = 3
+script = ExtResource("31_grass")
+grass_material = SubResource("ShaderMaterial_grass")
+
+[node name="HorizonRing" type="MeshInstance3D" parent="." unique_id=1363561784]
+process_mode = 3
+material_override = SubResource("ShaderMaterial_ring")
+cast_shadow = 0
+script = ExtResource("7_ring")
+
+[node name="Car" parent="." unique_id=1971030620 instance=ExtResource("3_car")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+
+[node name="Camera" type="Camera3D" parent="." unique_id=2001959003 node_paths=PackedStringArray("target")]
+current = true
+near = 0.1
+far = 30000.0
+script = ExtResource("4_cam")
+target = NodePath("../Car")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1684121991]
+
+[node name="Speedometer" type="Control" parent="HUD" unique_id=652356 node_paths=PackedStringArray("car", "limits", "cruise")]
+layout_mode = 3
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -340.0
+offset_top = -340.0
+offset_right = -40.0
+offset_bottom = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("50_speedo")
+car = NodePath("../../Car")
+limits = NodePath("../../SpeedLimits")
+cruise = NodePath("../../CruiseControl")
+
+[node name="Minimap" type="Control" parent="HUD" unique_id=1008487377 node_paths=PackedStringArray("car", "roads", "navigation", "tiles", "viewpoints", "exploration")]
+layout_mode = 3
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -340.0
+offset_right = 352.0
+offset_bottom = -40.0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("62_minimap")
+car = NodePath("../../Car")
+roads = NodePath("../../Roads")
+navigation = NodePath("../../Navigation")
+tiles = NodePath("../../MapTiles")
+viewpoints = NodePath("../../Viewpoints")
+exploration = NodePath("../../Exploration")
+
+[node name="NavBanner" type="Control" parent="HUD" unique_id=593036642 node_paths=PackedStringArray("navigation", "day_night")]
+layout_mode = 3
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -252.0
+offset_top = 32.0
+offset_right = 252.0
+offset_bottom = 126.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("63_banner")
+navigation = NodePath("../../Navigation")
+day_night = NodePath("../../DayNight")
+
+[node name="StatusChips" type="Control" parent="HUD" unique_id=1891014953 node_paths=PackedStringArray("day_night", "weather", "car")]
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -660.0
+offset_top = 32.0
+offset_right = -40.0
+offset_bottom = 74.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("70_chips")
+day_night = NodePath("../../DayNight")
+weather = NodePath("../../Weather")
+car = NodePath("../../Car")
+
+[node name="FpsLabel" type="Label" parent="HUD" unique_id=1919735328 node_paths=PackedStringArray("terrain")]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -36.0
+offset_right = 300.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.6)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "FPS"
+horizontal_alignment = 1
+script = ExtResource("8_fps")
+terrain = NodePath("../../Terrain")
+
+[node name="Messages" type="CanvasLayer" parent="." unique_id=1663210792]
+process_mode = 3
+layer = 30
+
+[node name="Toasts" type="Control" parent="Messages" unique_id=851722759]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 40.0
+offset_top = 32.0
+offset_right = 500.0
+offset_bottom = 300.0
+mouse_filter = 2
+script = ExtResource("71_toasts")
+
+[node name="KeyHints" type="Control" parent="Messages" unique_id=204637980 node_paths=PackedStringArray("car", "roads", "viewpoints", "dyno", "settings", "hud", "garage", "pause_menu", "big_map", "photo_mode", "chill_mode", "rewind", "debug_tools")]
+layout_mode = 3
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -420.0
+offset_top = -100.0
+offset_right = 420.0
+offset_bottom = -44.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("97_hints")
+car = NodePath("../../Car")
+roads = NodePath("../../Roads")
+viewpoints = NodePath("../../Viewpoints")
+dyno = NodePath("../../Dyno")
+settings = NodePath("../../Settings")
+hud = NodePath("../../HUD")
+garage = NodePath("../../Garage")
+pause_menu = NodePath("../../PauseMenu")
+big_map = NodePath("../../BigMap")
+photo_mode = NodePath("../../PhotoMode")
+chill_mode = NodePath("../../ChillMode")
+rewind = NodePath("../../Rewind")
+debug_tools = NodePath("../../DebugTools")
+
+[node name="Loading" type="CanvasLayer" parent="." unique_id=250631038]
+layer = 40
+
+[node name="LoadingScreen" type="ColorRect" parent="Loading" unique_id=1448970597]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.03, 0.05, 1)
+script = ExtResource("96_loading")
+
+[node name="DebugTools" type="Node" parent="." unique_id=555484381 node_paths=PackedStringArray("camera")]
+script = ExtResource("9_debug")
+camera = NodePath("../Camera")
+
+[node name="Garage" type="CanvasLayer" parent="." unique_id=1481980078 node_paths=PackedStringArray("car", "hud", "day_night", "weather", "viewpoints", "dyno", "exploration")]
+script = ExtResource("51_garage")
+car = NodePath("../Car")
+cars = Array[ExtResource("57_profile")]([ExtResource("52_m2"), ExtResource("53_e30"), ExtResource("54_e92"), ExtResource("55_f90"), ExtResource("56_g90"), ExtResource("79_m4csl"), ExtResource("80_sl65"), ExtResource("81_c63"), ExtResource("90_giulietta"), ExtResource("91_mx5"), ExtResource("92_wrx"), ExtResource("93_urus"), ExtResource("94_caprice"), ExtResource("95_challenger"), ExtResource("96_corvette"), ExtResource("97_svj"), ExtResource("98_gt3rs"), ExtResource("99_supra")])
+hud = NodePath("../HUD")
+day_night = NodePath("../DayNight")
+weather = NodePath("../Weather")
+viewpoints = NodePath("../Viewpoints")
+dyno = NodePath("../Dyno")
+exploration = NodePath("../Exploration")
+
+[node name="MapTiles" type="Node" parent="." unique_id=753772667]
+process_mode = 3
+script = ExtResource("60_tiles")
+
+[node name="Navigation" type="Node" parent="." unique_id=542255762 node_paths=PackedStringArray("roads", "car")]
+script = ExtResource("61_nav")
+roads = NodePath("../Roads")
+car = NodePath("../Car")
+
+[node name="BigMap" type="CanvasLayer" parent="." unique_id=2063461678 node_paths=PackedStringArray("car", "roads", "navigation", "tiles", "viewpoints", "exploration")]
+script = ExtResource("64_bigmap")
+car = NodePath("../Car")
+roads = NodePath("../Roads")
+navigation = NodePath("../Navigation")
+tiles = NodePath("../MapTiles")
+viewpoints = NodePath("../Viewpoints")
+exploration = NodePath("../Exploration")
+
+[node name="FastTravel" type="CanvasLayer" parent="." unique_id=1327632910 node_paths=PackedStringArray("car", "roads", "main", "hud", "garage", "big_map", "photo_mode")]
+script = ExtResource("91_fasttravel")
+car = NodePath("../Car")
+roads = NodePath("../Roads")
+main = NodePath("..")
+hud = NodePath("../HUD")
+garage = NodePath("../Garage")
+big_map = NodePath("../BigMap")
+photo_mode = NodePath("../PhotoMode")
+
+[node name="Viewpoints" type="Node" parent="." unique_id=1978629530 node_paths=PackedStringArray("roads", "car", "exploration")]
+script = ExtResource("74_viewpoints")
+roads = NodePath("../Roads")
+car = NodePath("../Car")
+exploration = NodePath("../Exploration")
+
+[node name="PhotoMode" type="CanvasLayer" parent="." unique_id=185498199 node_paths=PackedStringArray("car", "hud", "messages", "day_night", "viewpoints", "exploration")]
+script = ExtResource("75_photo")
+car = NodePath("../Car")
+hud = NodePath("../HUD")
+messages = NodePath("../Messages")
+day_night = NodePath("../DayNight")
+viewpoints = NodePath("../Viewpoints")
+exploration = NodePath("../Exploration")
+
+[node name="Weather" type="Node" parent="." unique_id=1643283455 node_paths=PackedStringArray("day_night", "car", "camera", "world_environment", "precipitation", "sound", "terrain")]
+script = ExtResource("65_weather")
+day_night = NodePath("../DayNight")
+car = NodePath("../Car")
+camera = NodePath("../Camera")
+world_environment = NodePath("../WorldEnvironment")
+precipitation = NodePath("Precipitation")
+sound = NodePath("WeatherSound")
+terrain = NodePath("../Terrain")
+
+[node name="Precipitation" type="Node3D" parent="Weather" unique_id=1936034084 node_paths=PackedStringArray("camera")]
+process_mode = 3
+script = ExtResource("66_precip")
+camera = NodePath("../../Camera")
+
+[node name="WeatherSound" type="Node" parent="Weather" unique_id=928953098]
+script = ExtResource("67_wsound")
+
+[node name="TunnelEffects" type="Node" parent="." unique_id=153004329 node_paths=PackedStringArray("roads", "car", "camera", "day_night", "weather")]
+script = ExtResource("69_tunnelfx")
+roads = NodePath("../Roads")
+car = NodePath("../Car")
+camera = NodePath("../Camera")
+day_night = NodePath("../DayNight")
+weather = NodePath("../Weather")
+
+[node name="Traffic" type="Node3D" parent="." unique_id=1982294167 node_paths=PackedStringArray("roads", "car", "camera", "day_night", "debug_tools")]
+script = ExtResource("76_traffic")
+roads = NodePath("../Roads")
+car = NodePath("../Car")
+camera = NodePath("../Camera")
+day_night = NodePath("../DayNight")
+debug_tools = NodePath("../DebugTools")
+
+[node name="Settings" type="Node" parent="." unique_id=118762327 node_paths=PackedStringArray("world_environment", "sun", "day_night", "weather", "terrain", "grass", "roads", "traffic", "car", "garage", "speedometer", "fps_label", "debug_tools", "cruise", "exploration", "chill_mode")]
+script = ExtResource("77_settings")
+world_environment = NodePath("../WorldEnvironment")
+sun = NodePath("../Sun")
+day_night = NodePath("../DayNight")
+weather = NodePath("../Weather")
+terrain = NodePath("../Terrain")
+grass = NodePath("../Grass")
+roads = NodePath("../Roads")
+traffic = NodePath("../Traffic")
+car = NodePath("../Car")
+garage = NodePath("../Garage")
+speedometer = NodePath("../HUD/Speedometer")
+fps_label = NodePath("../HUD/FpsLabel")
+debug_tools = NodePath("../DebugTools")
+cruise = NodePath("../CruiseControl")
+exploration = NodePath("../Exploration")
+chill_mode = NodePath("../ChillMode")
+
+[node name="PauseMenu" type="CanvasLayer" parent="." unique_id=804107870 node_paths=PackedStringArray("settings", "garage", "big_map", "photo_mode", "hud", "weather", "chill_mode", "whats_new")]
+script = ExtResource("78_pause")
+settings = NodePath("../Settings")
+garage = NodePath("../Garage")
+big_map = NodePath("../BigMap")
+photo_mode = NodePath("../PhotoMode")
+hud = NodePath("../HUD")
+weather = NodePath("../Weather")
+chill_mode = NodePath("../ChillMode")
+whats_new = NodePath("../WhatsNew")
+
+[node name="SpeedLimits" type="Node" parent="." unique_id=1299354975 node_paths=PackedStringArray("roads", "car")]
+script = ExtResource("83_limits")
+roads = NodePath("../Roads")
+car = NodePath("../Car")
+
+[node name="CruiseControl" type="Node" parent="." unique_id=809872352 node_paths=PackedStringArray("car", "traffic", "limits")]
+script = ExtResource("84_cruise")
+car = NodePath("../Car")
+traffic = NodePath("../Traffic")
+limits = NodePath("../SpeedLimits")
+
+[node name="Race" type="CanvasLayer" parent="." unique_id=132058616 node_paths=PackedStringArray("car", "traffic", "roads", "navigation", "debug_tools")]
+script = ExtResource("85_race")
+car = NodePath("../Car")
+traffic = NodePath("../Traffic")
+roads = NodePath("../Roads")
+navigation = NodePath("../Navigation")
+debug_tools = NodePath("../DebugTools")
+
+[node name="PassbySound" type="Node3D" parent="." unique_id=685626890 node_paths=PackedStringArray("traffic", "camera")]
+script = ExtResource("86_passby")
+traffic = NodePath("../Traffic")
+camera = NodePath("../Camera")
+
+[node name="OpenWindows" type="Node" parent="." unique_id=331419493 node_paths=PackedStringArray("car")]
+script = ExtResource("87_windows")
+car = NodePath("../Car")
+
+[node name="Puddles" type="Node3D" parent="." unique_id=366875992 node_paths=PackedStringArray("car", "limits")]
+script = ExtResource("88_puddles")
+car = NodePath("../Car")
+limits = NodePath("../SpeedLimits")
+
+[node name="AutumnLeaves" type="GPUParticles3D" parent="." unique_id=1600554089 node_paths=PackedStringArray("car", "weather")]
+script = ExtResource("89_leaves")
+car = NodePath("../Car")
+world_gen = SubResource("WorldGen_main")
+weather = NodePath("../Weather")
+
+[node name="Dyno" type="CanvasLayer" parent="." unique_id=174215791 node_paths=PackedStringArray("car", "debug_tools")]
+script = ExtResource("90_dyno")
+car = NodePath("../Car")
+cars = Array[ExtResource("57_profile")]([ExtResource("52_m2"), ExtResource("53_e30"), ExtResource("54_e92"), ExtResource("55_f90"), ExtResource("56_g90"), ExtResource("79_m4csl"), ExtResource("80_sl65"), ExtResource("81_c63"), ExtResource("90_giulietta"), ExtResource("91_mx5"), ExtResource("92_wrx"), ExtResource("93_urus"), ExtResource("94_caprice"), ExtResource("95_challenger"), ExtResource("96_corvette"), ExtResource("97_svj"), ExtResource("98_gt3rs"), ExtResource("99_supra")])
+debug_tools = NodePath("../DebugTools")
+
+[node name="Waterfalls" type="Node3D" parent="." unique_id=1071846155 node_paths=PackedStringArray("car")]
+script = ExtResource("91_waterfalls")
+car = NodePath("../Car")
+world_gen = SubResource("WorldGen_main")
+
+[node name="LakeLife" type="Node3D" parent="." unique_id=1084840546 node_paths=PackedStringArray("car", "roads", "weather")]
+script = ExtResource("92_lakelife")
+car = NodePath("../Car")
+world_gen = SubResource("WorldGen_main")
+roads = NodePath("../Roads")
+weather = NodePath("../Weather")
+
+[node name="Exploration" type="Node" parent="." unique_id=656599127 node_paths=PackedStringArray("car", "roads", "debug_tools")]
+script = ExtResource("93_explore")
+car = NodePath("../Car")
+roads = NodePath("../Roads")
+debug_tools = NodePath("../DebugTools")
+
+[node name="CarReset" type="Node" parent="." unique_id=1049843124 node_paths=PackedStringArray("car", "roads")]
+script = ExtResource("95_reset")
+car = NodePath("../Car")
+roads = NodePath("../Roads")
+
+[node name="ChillMode" type="CanvasLayer" parent="." unique_id=421865187 node_paths=PackedStringArray("car", "camera", "roads", "traffic", "limits", "day_night", "hud", "messages", "debug_tools")]
+script = ExtResource("94_chill")
+car = NodePath("../Car")
+camera = NodePath("../Camera")
+roads = NodePath("../Roads")
+traffic = NodePath("../Traffic")
+limits = NodePath("../SpeedLimits")
+day_night = NodePath("../DayNight")
+hud = NodePath("../HUD")
+messages = NodePath("../Messages")
+debug_tools = NodePath("../DebugTools")
+
+[node name="Rewind" type="Node" parent="." unique_id=1879815364 node_paths=PackedStringArray("car", "camera", "traffic")]
+script = ExtResource("90_rewind")
+car = NodePath("../Car")
+camera = NodePath("../Camera")
+traffic = NodePath("../Traffic")
+
+[node name="SoundMix" type="Node" parent="." unique_id=1362634666 node_paths=PackedStringArray("car", "navigation", "tunnel_effects")]
+script = ExtResource("91_soundmix")
+car = NodePath("../Car")
+navigation = NodePath("../Navigation")
+tunnel_effects = NodePath("../TunnelEffects")
+
+[node name="WhatsNew" type="CanvasLayer" parent="." unique_id=1294189017 node_paths=PackedStringArray("debug_tools")]
+script = ExtResource("98_whatsnew")
+debug_tools = NodePath("../DebugTools")
+
+[node name="CityMap" type="Node3D" parent="." unique_id=1438419381]
+script = ExtResource("99_citymap")

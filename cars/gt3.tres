@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="CarProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/car_profile.gd" id="1_7ticf"]
+
+[resource]
+script = ExtResource("1_7ticf")
+id = "gt3"
+display_name = "Porsche 911 GT3"
+subtitle = "Porsche · 2021"
+brand = "Porsche"
+year = 2021
+model_folder = "porsche-911-gt3"
+credit = "Sketchfab model, license see assets/models/porsche-911-gt3"
+power_ps = 510
+engine_text = "4,0 l Boxer-Sechszylinder (9A1)"
+wheel_parts = PackedStringArray("Wheel_Hub_LR_001", "Wheel_Hub_LR1_001", "Wheel_Hub_LF_001", "Wheel_Hub_LF1_001", "Tyre_RR2_001", "Tyre_RR1_001", "GEO_rim_RF_SUB0_001", "GEO_rim_LF_SUB0_001", "GEO_rim_front3_SUB0_001", "GEO_rim_front2_SUB0_001", "GEO_rim_blur_LF_SUB1_001", "A_Tyre_LF_001", "A_Tyre_LF2_001")
+caliper_parts = PackedStringArray()
+hidden_parts = PackedStringArray()
+interior_parts = PackedStringArray()
+sticker_parts = PackedStringArray()
+paint_materials = PackedStringArray()
+glass_materials = PackedStringArray()
+tire_materials = PackedStringArray()
+rim_materials = PackedStringArray()
+exhaust_materials = PackedStringArray()
+headlight_materials = PackedStringArray()
+taillight_materials = PackedStringArray()
+shadow_parts = PackedStringArray()
+low_detail_parts = PackedStringArray()
+paint_colors = Array[Color]([Color(0.75, 0.08, 0.09, 1), Color(0.86, 0.87, 0.86, 1), Color(0.02, 0.05, 0.12, 1), Color(0.62, 0.64, 0.66, 1), Color(0.92, 0.55, 0.02, 1), Color(0.03, 0.32, 0.6, 1)])
+wheelbase = 2.457
+track_front = 1.553
+track_rear = 1.553
+wheel_radius = 0.34
+body_size = Vector3(1.8, 0.7, 4.55)
+body_center = Vector3(0, 0.35, 0)
+cabin_size = Vector3(1.3, 0.54, 2.3)
+cabin_center = Vector3(0, 0.95, -0.18)
+steering_wheel_parts = PackedStringArray()
+indicator_points = PackedVector3Array()
+indicator_materials = PackedStringArray()
+exhaust_tips = PackedVector3Array()
+plate_hide = PackedStringArray("manufacturerpla")

@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="CarProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/car_profile.gd" id="1_tfjuq"]
+
+[resource]
+script = ExtResource("1_tfjuq")
+id = "centenario"
+display_name = "Lamborghini Centenario LP 770-4"
+subtitle = "Lamborghini · 2016"
+brand = "Lamborghini"
+year = 2016
+model_folder = "lamborghini-centenario-lp-770-interior-sdc"
+credit = "Sketchfab model, license see assets/models/lamborghini-centenario-lp-770-interior-sdc"
+power_ps = 770
+drive_text = "All-wheel drive"
+engine_text = "6,5 l V12"
+wheel_parts = PackedStringArray("movsteer_1_0", "<Wheel_004", "<Wheel_003", "<Wheel_002", "<Wheel_001", "<Wheel")
+caliper_parts = PackedStringArray()
+hidden_parts = PackedStringArray()
+interior_parts = PackedStringArray()
+sticker_parts = PackedStringArray()
+paint_materials = PackedStringArray()
+glass_materials = PackedStringArray()
+tire_materials = PackedStringArray()
+rim_materials = PackedStringArray()
+exhaust_materials = PackedStringArray()
+headlight_materials = PackedStringArray()
+taillight_materials = PackedStringArray()
+shadow_parts = PackedStringArray()
+low_detail_parts = PackedStringArray()
+paint_colors = Array[Color]([Color(0.75, 0.08, 0.09, 1), Color(0.86, 0.87, 0.86, 1), Color(0.02, 0.05, 0.12, 1), Color(0.62, 0.64, 0.66, 1), Color(0.92, 0.55, 0.02, 1), Color(0.03, 0.32, 0.6, 1)])
+track_front = 1.668
+track_rear = 1.668
+wheel_radius = 0.35
+body_size = Vector3(1.98, 0.63, 4.9)
+body_center = Vector3(0, 0.31, 0)
+cabin_size = Vector3(1.44, 0.48, 2.3)
+cabin_center = Vector3(0, 0.86, -0.18)
+cylinders = 12
+steering_wheel_parts = PackedStringArray()
+indicator_points = PackedVector3Array()
+indicator_materials = PackedStringArray()
+exhaust_tips = PackedVector3Array()
+plate_hide = PackedStringArray("manufacturerpla")

@@ -1,0 +1,262 @@
+# HUD, Menüs, Garage, Karte, Fotomodus, Chill-Modus
+
+## Tasten
+
+- Tasten: WASD fahren, Leertaste Handbremse, R Reset (aufrichten bzw. zurück auf die Straße, 3 s Sperre),
+  T Schnellreise (Raststätten in der Nähe), Y Zeitraffer, F3 FPS,
+  C Lackfarbe, K Aufkleber, L Licht, G Garage (← → Auto, C Lack, Enter losfahren, Esc zurück),
+  M große Karte (Linksklick Ziel, Rechtsklick
+  Ziel löschen, Mausrad zoomen, ziehen verschiebt), F5 Wetter (Automatisch → Klar → Bewölkt →
+  Regen → Gewitter → Nebel → Schnee), J Jahreszeit, P Fotomodus (Maus ziehen schwenkt,
+  W A S D / R F bewegen, Mausrad Zoom, 1–4 Filter, ↑ ↓ Belichtung, ← → Tageszeit,
+  G Schärfe aufs Auto, Leertaste Foto, O Foto-Ordner, P/Esc zurück), Q Blinker links,
+  E Blinker rechts (noch mal = aus), X Warnblinker, H Hupe, F Lichthupe, N Tempomat an/aus,
+  + / − Wunschtempo (gedrückt halten: 10er-Schritte), B Abstandsstufe, V Fenster auf/zu,
+  Tab Kamera (Verfolger → Cockpit → Ego, siehe `autos.md`), U 2WD (nur M5, im Stand),
+  Rücktaste halten = zurückspulen (bis 10 s),
+  Esc Pausemenü (dort Einstellungen; alle Tasten außer Esc lassen sich unter Steuerung neu belegen).
+- Zu Fuß (City Block): F ein-/aussteigen, WASD laufen (relativ zur Kamera), Shift rennen,
+  Leertaste springen, Maus umsehen; F neben einem KI-Auto klaut es.
+
+## HUD und Glas
+
+- HUD und Menüs (Entwurf „Glas“, `screenshots/design_*.png`): gemeinsamer Stil in `ui_style.gd`
+  (Farben, Akzentfarbe, Schrift Inter mit gleich breiten Ziffern über OpenType „tnum“), Symbole
+  werden gezeichnet (`ui_icons.gd`, keine Bilddateien). Grundgröße 1600 × 900, Stretch
+  „canvas_items“ skaliert alles mit dem Fenster (Fenster startet mit 1280 × 720). Teile:
+  `speedometer.gd`, `minimap.gd`, `nav_banner.gd`, `status_chips.gd`, `toasts.gd` (Meldungen
+  von überall: `Toasts.post(get_tree(), Symbol, Titel, Text, Taste, Tastentext)`).
+- Glas (`glass_panel.gd`): Echte Unschärfe (`glass.gdshader`, Bildschirmtextur) kostet
+  ~1,7 ms pro Bild (am Entwicklungsrechner gemessen), egal wie viele Panels: Godot muss dafür das Zeichnen unterbrechen
+  (gemessen abwechselnd, 1280×720-Fenster: ohne HUD 134,7 FPS, mit unscharfem HUD ~110).
+  Deshalb nur, wo das Spiel pausiert (Garage, große Karte, Fotomodus). Das HUD beim Fahren ist
+  nur getönt (`glass_tint.gdshader`, Deckkraft 0,64) und kostet praktisch nichts. Umschalten:
+  `blur` am GlassPanel. Mipmaps der Bildschirmtextur waren noch teurer; BackBufferCopy mit
+  Ausschnitt lieferte in dieser Anordnung nur Schwarz.
+- Testen: `--nohud` blendet das HUD aus, `--hide=Minimap,Speedometer` einzelne Teile. Messungen
+  streuen stark mit der Temperatur des Macs: immer abwechselnd mit/ohne messen.
+- Meldungen (Toasts) stapeln sich ohne Überlappung: Eine neue startet eine Reihe über der obersten und
+  gleitet an Platz 1, ältere werden mit nach unten geschoben (jede liegt immer mindestens 68 + 12 px
+  unter der darüber). Mehr als 3 auf einmal: die ältesten blenden aus (0,3 s), statt zu verschwinden.
+
+## Ladebildschirm
+
+- `loading_screen.gd` (Knoten Loading/LoadingScreen, Ebene 40): Bilder aus `assets/loading/` (Fotos aus
+  dem README, nur Autos mit CC-BY-Lizenz) wechseln alle 5 s mit 1,2 s Überblendung und langsamem Zoom
+  (1,0 → 1,08), unten Titel, ein Tipp alle 4,5 s (15 Tipps, Tasten mit der aktuellen Belegung über
+  `GameSettings.action_key`) und ein Fortschrittsbalken mit Prozent und Status.
+- Ladestand (`game.gd` → `_update_loading`): 40 % Straßen rund um den Start
+  (`RoadNetwork.area_progress`, je Abschnitt nach Stand: berechnet 35 %, geprüft 70 %, Mesh 100 %,
+  verworfene zählen als fertig), 45 % Gelände-Kacheln mit Kollision am Auto
+  (`TerrainManager.area_progress`), 15 % Fernsicht (Horizont-Ring). Status „Auto wird geladen …“, solange
+  das Modell noch lädt. Der Balken zählt nie rückwärts und gleitet weich nach. Am Ende blendet der
+  Bildschirm in 0,5 s aus (in Testläufen sofort weg, damit Fotos nichts davon zeigen).
+- Testen: `--loadshot=S` speichert S Sekunden nach dem Start `laden.png` (falls noch geladen wird).
+
+## Animationen
+
+- `ui_fade.gd` (`UiFade.set_shown(ebene, an)`): Pausemenü, Garage, große Karte, Fotomodus und HUD blenden
+  in 0,18 s ein und 0,22 s aus (Deckkraft der obersten Flächen der Ebene, Tween läuft auch bei
+  angehaltenem Spiel). `is_open` wechselt sofort, nur das Bild läuft nach; beim Ausblenden fängt eine
+  unsichtbare Fläche die Klicks ab und der Tastatur-Fokus wird losgelassen. Gegenrichtung mitten in der
+  Animation geht vom aktuellen Stand weiter. Reiter in den Einstellungen und der Wechsel Pause ↔
+  Einstellungen blenden weich ein (`UiFade.swap_in`).
+- Achtung: Im Tween keine Lambdas, die den Tween selbst festhalten (Kreis → „ObjectDB instances leaked“).
+- Testen: `--midfade=S` öffnet das Menü (`--pause`, `--map`, `--garage`, `--photo`) erst S Sekunden vor
+  dem Foto, z. B. `--pause=0 --midfade=0.08` für ein Foto mitten in der Animation.
+
+## Was ist neu
+
+- `whats_new.gd` (Knoten WhatsNew, Ebene 36, über der Garage): zeigt den Abschnitt der aktuellen Version aus
+  `CHANGELOG.md` (einfaches Markdown → BBCode: Überschriften in Akzentfarbe, Punkte, Fett). Erscheint einmal
+  pro Version beim Start nach dem Laden (auch beim allerersten Start) über der Garage, nie in Testläufen
+  (nichts, was mit Argumenten oder ohne Bildschirm startet: Welt-Prüfer, `--quitafter` usw.);
+  gemerkt in `user://einstellungen.cfg` ([info] version_gesehen). Esc oder Enter schließt (in `_input`, also
+  vor der Garage darunter).
+- Pausemenü unten rechts: „Version 1.0.0 · Was ist neu?“ öffnet das Fenster jederzeit wieder.
+- Testen: `--whatsnew` (Foto mit dem Fenster, speichert nichts).
+
+## Tastenhilfe
+
+- `key_hints.gd` (Knoten Messages/KeyHints, unten Mitte, läuft auch bei angehaltenem Spiel): Glas-Leiste
+  mit Tastenkästchen, Tasten immer in der aktuellen Belegung.
+  - Auto steht 1,5 s: G Garage · P Foto · M Karte · Tab Kamera
+  - Raststätte (Parkplatz, Teil 0 der Rastanlage, unter 12 km/h): Auto wechseln, Schnellreise,
+    Y halten (Zeit vergeht), Foto
+  - Aussichtspunkt (Parkbucht im Umkreis von 25 m, unter 12 km/h): Fotomodus, Karte
+  - Prüfstand: Enter Messlauf starten (neu: Enter startet den Lauf), Esc zurück zur Garage
+- Ein Hinweis bleibt 12 s, dann blendet er aus, bis sich die Lage ändert. Aus bei offenen Menüs,
+  Chill-Modus, Zurückspulen und ausgeblendetem HUD (sofort geprüft), der Ort alle 0,25 s.
+- Abschaltbar: Einstellungen > Spiel > Tastenhilfe (`spiel/tastenhilfe`). In Testläufen aus, außer mit
+  `--hints` (erst beim Zeichnen gefragt: DebugTools liest die Argumente nach diesem Knoten ein).
+
+## Garage
+
+- Garage (`garage.gd`, Taste G, beim Start): eigene 3D-Welt (SubViewport) mit Boden,
+  Licht ohne Glanzpunkte (sonst Flecken im Boden), SSR nur dort. Spiel pausiert, Gelände,
+  Straßen, Wasser, Gras und Horizont laufen mit `process_mode = Always` weiter (die Welt lädt
+  im Hintergrund). Auto und Farbe: `user://einstellungen.cfg`. Tests (`--shot`, `--bench`,
+  `--car=ID`) öffnen keine Garage und fahren das angegebene bzw. erste Auto.
+- Werkstatt um das Auto (`garage_room.gd`, 18 × 18 × 4,2 m): alte Reifenwerkstatt in Rot und Grau
+  (Vorbild: Nicks Fotos), komplett aus Kisten, Zylindern und Tori gebaut, Texturen prozedural
+  (Perlin-Beton, Lochwand-Raster, Warnstreifen – keine Bilddateien). Boden: Betonplatten mit Fugen,
+  rote Farbkante an den Wänden, Bodenabläufe, Ölfleck, Hebebühnen-Platte mit gelb-schwarzen
+  Warnstreifen. Wände: heller Beton, Kabelkanäle, Verteilerdosen. Decke: Holzdielen mit drei Balken,
+  vier Leuchtstoffröhren. Rückwand: rote Werkbank mit Schubladen, drei Lochwände mit Werkzeug,
+  zwei Arbeitsleuchten, Poster. Rechts: rotes Reifenregal (drei Böden), Montagegerät, blaue Fässer,
+  Reifen an der Wand. Links: rotes Regal mit Kannen und Schlauchrollen, Kran, Palette, Tür mit
+  Fenster. Vorne (+Z): geschlossenes Rolltor, Hängeschrank, Werkzeugwagen, Wagenheber, Reifenstapel,
+  Schlauchrolle (kein Glas mehr, die Halle ist zu). Vier warme Deckenstrahler und zwei Fülllichter,
+  keine Schatten (kostet fast nichts). Rot: `GarageRoom.RED`. Dieselbe Werkstatt gilt für **alle**
+  Garagen. Wird bei jedem Öffnen gebaut und beim Schließen entfernt (`_build_room`/`_remove_room`).
+  Die Halle dreht sich mit dem Auto (`GarageRoom.build(..., yaw)` aus `car.global_basis.z`), und die
+  Hebebühne (3,4 × 5,4 m) liegt längs unter dem Auto – vorher war die Halle an der Weltachse
+  ausgerichtet und die Platte quer, das Auto stand schief und vorn/hinten über der Kante.
+  Der Boden liegt 4 cm über dem Grund (`GarageRoom.FLOOR_LIFT`): sonst liegt er genau in der Ebene
+  von Straße/Gelände und den Parkplatz-Linien (3 cm über der Platte) und der ganze Boden flackert.
+  Foto: `--shot=garage --garage --car=c63` (Kamerawinkel über `--wait=Sekunden` drehen).
+- Garage: pausiert das Spiel und zeigt das echte Auto in der Welt (Kamera kreist, Maus ziehen
+  dreht), öffnet beim Start erst, wenn die Welt geladen ist. Autowechsel sofort am echten Auto
+  (Räder dabei in Ruhelage setzen, sonst stehen sie dort, wo die Physik sie beim Laden
+  hingestellt hat). Welt-Umschalter ändern Uhrzeit (`DayNight.set_time`), Wetter und Jahreszeit
+  sofort. Gespeichert: Auto, Lack, HUD-Farbe (`hud/akzent`), Sportauspuff (`auto/sportauspuff`).
+- Nur vorhandene Autos: Autos ohne Modell (Download-Version) stehen gar nicht in der Garage, eine Marke ohne
+  Auto verschwindet. Fehlen alle Modelle (frisch von GitHub), bleiben alle ausgegraut („Modell fehlt“).
+  Credits (Knopf unten) nennen nur Modelle, die wirklich da sind, auch Verkehr und Tankstelle (siehe `windows-app.md`).
+
+## Schnellreise
+
+- `fast_travel.gd` (Knoten FastTravel, Ebene 14, Taste T): Liste der Raststätten („MEET“) im Umkreis
+  von 25 km, die nächsten zuerst, höchstens 18 Einträge. ↑ ↓ wählen, Enter reist, T oder Esc schließt;
+  das Spiel steht dabei still (wie bei der großen Karte). Die Einträge kommen aus
+  `highways.rest_areas_in` – es wird nichts gebaut, nichts gespeichert, die Liste ist also bei jedem
+  Öffnen dieselbe, solange man nicht fährt. Näher als 300 m gilt als „du stehst schon hier“.
+- Reisen: `game.jump_to(Mitte des Parkplatzes)` – Ladebildschirm, danach steht das Auto auf der
+  Straße an der Raststätte (dieselbe Technik wie beim Teleport in den Tests); das Navi plant eine
+  bestehende Route danach neu. Später stehen die Garagen in derselben Liste.
+- Zeitraffer liegt seit dem auf Y (vorher T), damit T für die Schnellreise frei ist; beide Tasten
+  lassen sich unter Einstellungen > Steuerung neu belegen. Foto: `--shot=travel --travel`.
+
+## Karte und Navi
+
+- Karte und Navi: `map_tiles.gd` rechnet das Kartenbild (Höhenfarbe, Schattierung, Wald,
+  Wasser) in Kacheln à 128 px im Hintergrund (Stufen 4/16/64 m pro Pixel, max. 400 gemerkt).
+  `map_view.gd` zeichnet darüber Straßen, Route, Ziel, Auto in Weltkoordinaten (eine
+  Transform, Straßenlinien pro Abschnitt einmal gemerkt). Minimap unten links (dreht mit,
+  Zoom 1,3–4 m/px nach Tempo, runde Maske über `clip_children`), große Karte mit M.
+  Navi (`navigation.gd`): A* über den Orts-Graphen (Orte/Verbindungen stehen ohne Wegsuche
+  fest); berechnete Abschnitte mit echter Länge, unbekannte mit Luftlinie × 1,35, weggefallene
+  (`RoadNetwork._missing`, bleibt gemerkt) gar nicht. Ziel rastet auf eine fertige Straße
+  (bis 80 m) oder auf den nächsten Ort mit Verbindung ein (sonst unerreichbar: Orte, deren
+  Straßen alle zu steil sind). Suche höchstens doppelte Luftlinie + 5 km. Jede Sekunde:
+  weggefallen → neu planen, neu berechnet → Linie verfeinern; > 40 m daneben für 3 s → neu.
+  14 km Route: ~25 ms. Geschätzte Teile der Route gestrichelt.
+- City Block: Straßennetz und Karte gibt es dort nicht, deshalb zeichnet `city_map.gd`
+  (`_build_map`) beim Laden die Stadt von oben in ein Bild – im selben dunklen Stil wie die
+  Geländekarte der endlosen Welt: Flächen werden mit Höhenpuffer gerastert (5 px/m, 2790 ×
+  1170 px, ~3 s einmalig), Straßen und Parkplätze holen ihren Ton aus ihrer eigenen
+  Textur (`MAP_ASPHALT_*`: Markierungen werden zu hellen Linien auf dunklem Asphalt),
+  Dächer werden nach Höhe heller (`MAP_LOW`/`MAP_HIGH`), Bäume dunkel, GLOW-Flächen (Fenster,
+  Schilder) bleiben weg. `map_view.gd` zeichnet das Bild über `city_texture` statt der
+  Straßen. Maßstab beim Öffnen `BigMap._fit_city`: so groß, dass der ganze Block (558 × 234 m)
+  mit 4 % Rand auf den Bildschirm passt (bei 1280 × 800 rund 0,45 m/px statt früher fest
+  0,6 m/px), Mitte = Mitte des Blocks; Zoom bis 0,25 m/px,
+  keine Navigation (keine Straßen zum Routen). Nur das Bild bauen und ansehen:
+  `Godot --headless --path . -s res://tools/city_map_test.gd` (schreibt
+  `screenshots/city_map.png`); im Spiel: `--track=city --map --shot=name`.
+
+## Entdecker-Karte und Sammlungen
+
+- Entdecker-Karte (`exploration.gd`, `Exploration`, Knoten „Exploration“): Gesehenes in Kacheln à
+  2048 m (256 × 256 Pixel, 8 m pro Pixel, LA8: Helligkeit = Wolkenmuster, Deckkraft = Nebel),
+  gespeichert als PNG in `user://karte/X_Z.png` (alle 20 s und beim Beenden). Aufgedeckt: 300 m um
+  das Auto (alle 0,5 s, wenn > 20 m weiter), weich auslaufend; an Aussichtspunkten und Raststätten
+  mit Aussicht (einmal pro Spielstart, auch schon entdeckte) ein Fächer ±55° bis 2,5 km in
+  Blickrichtung, aber nur, was man sieht: 111 Sichtstrahlen (1°) mit Prüfpunkten alle 20 m übers
+  Gelände (steilster Winkel bisher, knapp darunter halb), dazwischen bilinear überblendet. Alles im
+  WorkerThreadPool, ein Auftrag nach dem anderen (der Hauptthread liest nur, `_mutex`).
+- Karte (`map_view.gd`, `_draw_fog`): Nebel nach den Straßen, vor Route, Ziel und Symbolen
+  (Farbe `fog_color`, Deckkraft 0,985, Wolkenmuster aus nahtlosem FastNoiseLite, für jede Kachel
+  gleich). Unbekannte Kacheln teilen sich eine Textur. Raststätten, Talsperren- und Brückennamen
+  unter dem Nebel werden nicht gezeichnet, die „?“ der Aussichtspunkte schon (als Anreiz).
+  Navi und Route gehen wie vorher. Einstellungen > Spiel „Entdecker-Karte“ (`[spiel] entdecker`).
+- Orte-Sammlung: näher als 170 m an einem Ort (`RoadNetwork.node_at`, 3 × 3 Zellen um das Auto)
+  = besucht, beim ersten Mal Meldung „Neuer Ort: …, N Orte besucht“. `user://orte.cfg` (Name, Zeit,
+  Lage, Foto). Ein Foto im Fotomodus bekommt der nächste besuchte Ort bis 300 m. Garage >
+  Sammlung hat jetzt zwei Reiter: Orte und Aussichtspunkte (`Viewpoints.collection_row`,
+  Vorschaubilder gemerkt in `Viewpoints.thumbnail`). Testläufe laden und speichern nichts.
+- Testen: `--bench=60 --map` (Karte mit Nebel nach der Fahrt, Foto `bench_ende.png`),
+  `--bench=4 --map --pos=433,-861 --heading=57` (Blick vom Aussichtspunkt), `--bench=90
+  --collection=0 --pos=-660,459 --heading=103` (Orte-Sammlung nach der Fahrt durch Buchhof und
+  Mühlingen), `--collection=1` = Reiter Aussichtspunkte.
+
+## Fotomodus
+
+- Fotomodus (`photo_mode.gd`, Taste P): pausiert, HUD aus, eigene Kamera (max. 30 m vom Auto,
+  Strahl Auto→Kamera verhindert Gelände/Wände dazwischen, nicht unter den Boden). Schärfe
+  = DOF der Kamera auf die Entfernung zum Auto, Belichtung = `exposure_multiplier`, Filter =
+  Bildschirm-Shader (`photo_filter.gdshader`). Foto ohne Bedienfeld und Meldungen nach
+  `user://fotos/foto_DATUM_ZEIT.png`; die Tageszeit wird beim Verlassen zurückgestellt.
+- Testen: `--photo --filter=1` macht das Foto im Fotomodus, `--map` mit großer Karte. Beide
+  halten das Spiel an, dann läuft DebugTools mit `PROCESS_MODE_ALWAYS` weiter.
+  Aussichtspunkt am Start: `--pos=433,-861 --heading=57` (Aussicht bei Bergmünster).
+
+## Chill-Modus
+
+- Chill-Modus (`chill_mode.gd`, `ChillMode`, Pausemenü „Chill-Modus“): übernimmt die normale
+  Fahrkamera (`set_physics_process(false)`, dann laufen Regen, Talnebel usw. mit) und gibt ihr
+  eigene Kamera-Attribute (leichte Tiefenunschärfe hinter dem Auto). Kein HUD, keine Meldungen,
+  schwarze Balken oben/unten (je 8,5 %). Einstellungen alle 10–20 s: „heli“ (26 m hinten seitlich,
+  12 m hoch, kreist langsam), „side“ (6 m daneben zur Fahrbahnmitte), „low_front“ (10 m voraus,
+  0,35 m hoch, Blick zurück), „bumper“ (Stoßstange, Blick nach vorn), „roadside“ (fest am Rand
+  80–140 m voraus, auf dem geradesten Stück, Landstraße auf der tieferen Seite, Autobahn am
+  Mittelstreifen; Schnitt, sobald das Auto 45 m vorbei ist). Überblendung: das letzte Bild wird
+  festgehalten (`get_image`, ein kurzer Hänger pro Schnitt) und über 1,4 s ausgeblendet.
+- Chill-Autopilot: drückt dieselben Tasten wie ein Spieler. Route `RoadNetwork.route_from(…,
+  scenic = true, avoid)`: an Kreuzungen Punkte für Aussichtspunkte (Pass/See/Wasserfall mehr),
+  Talsperren, Landmarken-Brücken, Tunnel, dazu Zufall; die letzten 16 Abschnitte werden gemieden.
+  Auf der Autobahn bleibt er auf der Autobahn (wechselt nicht von selbst auf sie). Landstraße 2 m
+  rechts der Mitte, Wunschtempo 95 / Autobahn 150 km/h, Kurven 3 / 4,5 m/s² quer, Bremsen 2,5 m/s²,
+  Tempolimits (`SpeedLimits.effective_limit`), Abstand Mindestabstand + 2 s, Autobahn links
+  überholen mit Blinker. Im Stand Handbremse statt Bremse (Bremse im Stand = Rückwärtsgang).
+  Sackgasse: ausrollen, beim nächsten Schnitt um 180° drehen (unter der Überblendung).
+  Festgefahren, gekippt oder > 18 m neben der Route für 4 s: beim Schnitt auf die nächste Straße.
+- Beenden: jede Taste, Mausklick, Joypad oder > 40 px Mausbewegung (die ersten 0,8 s nicht, sonst
+  beendet ihn der Klick im Menü). Zeitraffer: Einstellungen > Spiel „Chill-Modus: Zeitraffer“
+  (normal / 4-fach / 12-fach, `[spiel] chill_zeit`), teilt `DayNight.day_length_minutes` solange.
+- Testen: `--bench=120 --chill --benchshot=10,25,40` (Chill-Modus fährt, Fotos, Ausgabe alle 5 s
+  „Chill: Einstellung, Tempo, Position“), z. B. Landstraße mit Sackgasse `--pos=-660,459
+  --heading=103`, Talsperre `--pos=2400,4180 --heading=86`. Gemessen 150 s ab Buchhof: 96–127 FPS
+  (Fenster), Sackgasse bei Mühlingen gewendet, durch Buchhof mit ~50 km/h.
+
+## Pausemenü und Einstellungen
+
+- Pausemenü (Teil 6, `pause_menu.gd`, Esc): Glas mit echter Unschärfe (Spiel pausiert),
+  Weiterfahren, Garage, Karte, Fotomodus, Chill-Modus, Einstellungen, Spiel beenden (zweiter Klick).
+  Esc öffnet nur, wenn nichts anderes pausiert hat; in den Einstellungen geht Esc zurück.
+- Einstellungen (`game_settings.gd`, Knoten „Settings“): Reiter Grafik, Anzeige, Steuerung,
+  Audio, Spiel; alles wirkt sofort, gespeichert in `user://einstellungen.cfg` (Abschnitte
+  grafik, anzeige, steuerung, tasten, audio, spiel), „Zurücksetzen“ je Reiter. HUD-Farbe und
+  Sportauspuff bleiben bei der Garage ([hud]/[auto]), automatisches Wetter = `Weather.mode`.
+  Testläufe (Argumente) nehmen die Standardwerte und speichern nichts; `--quality=niedrig|
+  mittel|hoch|ultra` wählt die Stufe, `--pause=0..5` macht ein Foto mit Menü (0 = Pause,
+  1–5 = Reiter).
+- Qualitätsstufen (`GameSettings.PRESETS`): Render-Auflösung 55/65/75/100 %, Sichtweite
+  1,3/1,7/2,0/2,6 km, Schatten Niedrig/Mittel/Mittel/Hoch (150/300/300/500 m, Karte
+  2048/4096), Vegetation 60/80/100/100 %, Gras Wenig/Normal/Normal/Viel (40/56/56/72 m),
+  SSAO aus/aus/an/an, Regen-Spiegelungen aus/an/an/an, Volumennebel nur Ultra, Wolkenschatten
+  ab Mittel. Weicht ein Regler ab: „Eigene Einstellung“.
+- Wie die Regler wirken: Sichtweite = `TerrainManager.set_detail` (Kachel-Umkreis, LOD-Grenzen
+  ×0,65–1,3, Bäume bis Stufe 1/2/3) und `RoadNetwork.mesh_distance`; Vegetation = Baumabstand
+  7 m / √Dichte, geänderte Vegetation baut alle Kacheln nach und nach neu (`_generation`, die
+  alten bleiben bis dahin sichtbar, Stamm-Kollision wird erneuert); Gras = `GrassManager.
+  set_level` (alle Felder neu); Schatten aus = `DayNight.shadows_allowed`; Wolkenschatten =
+  `Weather.cloud_shadows`. Schwere Regler wirken 0,35 s nach dem letzten Ziehen.
+- Anzeige: Fenster/Vollbild, Fenstergröße 1280×720 bis 2560×1440 (mittig), V-Sync, FPS-Grenze
+  30/60/120/unbegrenzt (`Engine.max_fps`), FPS-Anzeige. Steuerung: Grip-Stufe,
+  Lenkempfindlichkeit 50–150 %, 20 Tasten neu belegbar (physische Taste, Name nach Layout über
+  `keyboard_get_label_from_physical`, Doppelbelegung wird rot angezeigt, Esc bleibt frei).
+- Audio-Busse (`default_bus_layout.tres`): Master, Motor (alle Auto-Geräusche, über den
+  Tunnel-Bus mit Hall), Umgebung (Regen, Wind, Donner), Musik (vorbereitet, noch keine Musik).
+  Spiel: HUD-Farbe, Sportauspuff, km/h oder mph (Tacho), automatisches Wetter, Tageslänge,
+  Tastenhilfe.
