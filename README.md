@@ -207,7 +207,7 @@ The program keeps its settings, maps and collections in the same folder as the g
 
 ## Made by
 
-**Nick Aldinger** ([@nicks2d](https://github.com/nicks2d)) came up with the idea and directed the project: what to build, how it should look and feel, every new feature from the first car on a flat plane to motorways, dams and chill mode, the choice of cars, bug reports, testing and feedback.
+N1ko7a 
 
 The code was written with [**Claude**](https://claude.ai) by Anthropic as an AI pair programmer. Nick described each feature in plain language, Claude wrote, tested and refined the code, and the two iterated until it worked the way he wanted.
 
