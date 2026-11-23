@@ -19,6 +19,9 @@ desktop.ini
 # Screenshots vom Screenshot-Werkzeug
 /screenshots/
 
+# Eigene Karten aus fremden Spielen (Lizenz erlaubt keine Weitergabe)
+/assets/tracks/
+
 # Automodelle: Ihre Lizenzen (CC BY, CC BY-NC-ND, CC BY-NC-SA) erlauben keine bzw. nur
 # eingeschränkte Weitergabe, deshalb bleiben alle Modelle aus dem Repo.
 # Download-Anleitung: assets/models/README.md
@@ -28,7 +31,3 @@ desktop.ini
 
 # Eigene Prompt-Sammlung: bleibt nur lokal
 /PROMPTS.md
-
-# Strecken aus Assetto Corsa: nur lokal (Lizenz erlaubt keine Weitergabe)
-/assets/tracks/
-__pycache__/

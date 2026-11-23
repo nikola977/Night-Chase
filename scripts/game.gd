@@ -3,7 +3,7 @@ extends Node3D
 ## und lässt es erst losfahren, wenn das Gelände drumherum geladen ist.
 
 ## Name der App im Fenstertitel
-const APP_TITLE := "Car Driving World"
+const APP_TITLE := "Night Chase"
 
 ## Die Welt-Formel mit allen Einstellungen (Seed, Bergeshöhe, ...)
 @export var world_gen: WorldGen
@@ -21,6 +21,27 @@ const APP_TITLE := "Car Driving World"
 @export var weather: Weather
 ## Fenster „Was ist neu“ (einmal pro Version beim Start)
 @export var whats_new: WhatsNew
+
+const OnFootScript = preload("res://scripts/on_foot.gd")
+const MainMenuScript = preload("res://scripts/main_menu.gd")
+
+## Zu Fuß unterwegs (F) und Startmenü, beide im Code gebaut
+var _on_foot
+var _menu
+## Editor im Spiel (F2): Modelle importieren und in die Welt stellen (scripts/build_editor.gd)
+var _builder: BuildEditor
+## true = the second map "City Block" instead of the endless world
+var _city_mode: bool = false
+## The city map node from main.tscn (only used in city mode)
+var _city_map: CityMap
+## AI traffic on the city streets (only used in city mode)
+var _city_traffic: CityTraffic
+## NPC traffic on the player's own roads from the editor (both maps)
+var _road_traffic: CityTraffic
+## City mode: seconds spent waiting for the car model behind the loading screen
+var _city_car_wait: float = 0.0
+## City mode: how long the loading screen may wait for the car model (seconds)
+const CITY_CAR_TIMEOUT: float = 6.0
 
 var world_is_ready: bool = false
 var _car_on_road: bool = false
@@ -40,22 +61,30 @@ var _normal_uploads: int = 2
 
 
 func _ready() -> void:
-	# Strecken-Modus (Osaka Nanko) direkt starten: -- --track=osaka
-	# Sonst geht es wie immer in der endlosen Welt los; im Pausemenü lässt sich wechseln.
-	if "--track=osaka" in OS.get_cmdline_user_args():
-		# Die anderen Knoten dieser Szene dürfen bis zum Wechsel nichts mehr rechnen,
-		# sonst greifen sie auf die nie gestarteten Straßen zu (Fehler im Log).
-		set_process(false)
-		set_physics_process(false)
-		for node in get_children():
-			node.process_mode = Node.PROCESS_MODE_DISABLED
-		# Erst nach dem Ende von _ready wechseln: mitten im Aufbau der Szene darf
-		# Godot keine Knoten entfernen.
-		get_tree().call_deferred("change_scene_to_file", "res://scenes/track_world.tscn")
-		return
-	# Name der App (der Projektname „Endlose Welt“ bleibt, nach ihm heißt der Speicherordner user://)
+	# Second map: -- --track=city on the command line, or the menus set CityMode.enabled
+	# and reload this scene. Everything else (car, garage, HUD, pause menu, weather,
+	# settings) stays the same and only the procedural world is left out.
+	_city_mode = CityMode.enabled or OS.get_cmdline_user_args().has("--track=city")
+	# Name of the app (the project name stays; the save folder user:// is named after it)
 	get_window().title = APP_TITLE
 	world_gen.setup()
+	_on_foot = OnFootScript.new()
+	_on_foot.name = "OnFoot"
+	_on_foot.car = car
+	_on_foot.follow_camera = get_node_or_null("Camera")
+	add_child(_on_foot)
+	_menu = MainMenuScript.new()
+	_menu.name = "MainMenu"
+	_menu.garage = garage
+	_menu.pause_menu = get_node_or_null("PauseMenu")
+	add_child(_menu)
+	# Welt-Editor: Modelle importieren, aufstellen und speichern (F2)
+	_builder = BuildEditor.new()
+	_builder.name = "BuildEditor"
+	_builder.game = self
+	_builder.car = car
+	add_child(_builder)
+	_builder.layout_loaded.connect(_on_layout_loaded)
 	var start_point := Vector2.ZERO
 	var heading := 0.0
 	if debug_tools.has_start_position:
@@ -74,6 +103,10 @@ func _ready() -> void:
 	_start_point = start_point
 	_start_heading = heading
 	car.freeze = true
+	# Second map: no procedural world at all, the city is loaded in its place
+	if _city_mode:
+		_start_city(start_point, heading)
+		return
 	# Vorläufiger Platz, bis die Straßen in der Nähe berechnet sind
 	car.teleport(find_start(start_point, heading), true)
 	roads.start(world_gen, car)
@@ -106,6 +139,110 @@ func _ready() -> void:
 	# Die Garage öffnet sich, sobald die Welt geladen ist (siehe _process)
 
 
+## Second map: switch the procedural world off and load the city instead.
+## The nodes stay in the scene, so garage, HUD, pause menu, weather and settings
+## keep working exactly as in the endless world.
+func _start_city(start_point: Vector2, heading: float) -> void:
+	CityMode.enabled = true
+	get_window().title = "%s – City Block" % APP_TITLE
+	# Systems that need roads or terrain must not run (they would query roads that never started)
+	for part in ["Terrain", "Roads", "Water", "Grass", "HorizonRing", "Traffic", "SpeedLimits",
+			"CruiseControl", "Race", "Puddles", "Waterfalls", "LakeLife", "Exploration",
+			"Viewpoints", "FastTravel", "MapTiles", "Navigation", "CarReset", "ChillMode",
+			"PassbySound", "TunnelEffects", "KeyHints"]:
+		var node := get_node_or_null(part)
+		if node:
+			node.process_mode = Node.PROCESS_MODE_DISABLED
+		if node is Node3D:
+			(node as Node3D).visible = false
+	# The map has no roads, so the minimap and the navigation banner stay hidden
+	var hud := get_node_or_null("HUD")
+	if hud:
+		for part in ["Minimap", "NavBanner"]:
+			var control := hud.get_node_or_null(part)
+			if control:
+				control.visible = false
+	_city_map = get_node_or_null("CityMap") as CityMap
+	if _city_map == null:
+		push_error("CityMap node missing in main.tscn")
+		return
+	if debug_tools.has_start_position:
+		_city_map.spawn_point = Vector3(start_point.x, _city_map.spawn_point.y, start_point.y)
+		_city_map.spawn_heading = heading
+	if not _city_map.map_ready.is_connected(_on_city_map_ready):
+		_city_map.map_ready.connect(_on_city_map_ready)
+	_city_map.build(car)
+	# F2 can edit the city's own houses and blocks (move, rotate, scale, delete)
+	if _builder:
+		_builder.city_map = _city_map
+	car.teleport(_city_map.start_transform(), true)
+	# GTA-style AI traffic on the city streets (its own street grid, see CityTraffic)
+	if _city_traffic == null:
+		_city_traffic = CityTraffic.new()
+		_city_traffic.name = "CityTraffic"
+		add_child(_city_traffic)
+	_city_traffic.car = car
+	_city_traffic.on_foot = _on_foot
+	_city_traffic.build()
+	if _on_foot:
+		_on_foot.set("city_traffic", _city_traffic)
+	# The city has no road network, so the big map shows a picture of the city instead.
+	# The picture is drawn in the background (see CityMap._build_map_async).
+	_on_city_map_ready(_city_map.map_texture, _city_map.map_bounds)
+	if weather:
+		weather.world_gen = world_gen
+	# The city is still and full of straight edges (poles, railings, kerbs); without
+	# anti-aliasing they sparkle while driving, so temporal anti-aliasing is on here
+	get_viewport().use_taa = true
+	# The loading screen stays until the car model is built: until then the car is a
+	# painted box, and in the endless world the terrain loading hides that moment
+	_city_car_wait = 0.0
+	loading_screen.visible = true
+	var screen := loading_screen as LoadingScreen
+	if screen:
+		screen.set_progress(0.9, "Loading car …")
+	world_is_ready = false
+
+
+## The editor has put the saved layout into the world (or changed it)
+func _on_layout_loaded() -> void:
+	refresh_road_traffic()
+
+
+## NPC cars drive on the player's own roads (the editor's @road pieces). Called when the
+## layout is loaded and whenever the roads are placed, moved or deleted.
+func refresh_road_traffic() -> void:
+	if _builder == null:
+		return
+	var segments: Array = _builder.placed_roads()
+	if segments.is_empty():
+		if _road_traffic != null and is_instance_valid(_road_traffic):
+			_road_traffic.queue_free()
+			_road_traffic = null
+		return
+	if _road_traffic == null or not is_instance_valid(_road_traffic):
+		_road_traffic = CityTraffic.new()
+		_road_traffic.name = "RoadTraffic"
+		add_child(_road_traffic)
+		_road_traffic.car = car
+		_road_traffic.on_foot = _on_foot
+	if not _road_traffic.build_on_roads(segments):
+		_road_traffic.queue_free()
+		_road_traffic = null
+		return
+	if _on_foot:
+		_on_foot.set("road_traffic", _road_traffic)
+
+
+## City map: the picture is finished (drawn in a background thread), hand it to the big map
+func _on_city_map_ready(texture: Texture2D, bounds: Rect2) -> void:
+	if texture == null:
+		return
+	var big_map := get_node_or_null("BigMap") as BigMap
+	if big_map:
+		big_map.set_city_map(texture, bounds)
+
+
 func _process(delta: float) -> void:
 	var started := Time.get_ticks_usec()
 	_timed_process(delta)
@@ -113,6 +250,9 @@ func _process(delta: float) -> void:
 
 
 func _timed_process(delta: float) -> void:
+	if _city_mode and not world_is_ready:
+		_update_city_loading(delta)
+		return
 	if world_is_ready:
 		_check_for_jump()
 		return
@@ -131,6 +271,19 @@ func _timed_process(delta: float) -> void:
 				terrain.area_progress(car.global_position) * 100.0, str(horizon.is_ready_at(car.global_position))])
 		if terrain.is_ground_ready_at(car.global_position):
 			_finish_loading()
+
+
+## City mode: wait for the car model before the world is shown (the car is a painted
+## box until then). A timeout keeps a missing model from blocking the start.
+func _update_city_loading(delta: float) -> void:
+	_city_car_wait += delta
+	var model := car.get_node_or_null("Model") as CarModel
+	var screen := loading_screen as LoadingScreen
+	if screen:
+		screen.set_progress(0.9, "Loading car …")
+	if model != null and model.is_loading() and _city_car_wait < CITY_CAR_TIMEOUT:
+		return
+	_finish_loading()
 
 
 ## Loading is done: hide the loading screen, release the car and (at the first start) open the garage
@@ -152,9 +305,13 @@ func _finish_loading() -> void:
 		_started = true
 		debug_tools.on_world_ready(self)
 		if garage and not debug_tools.is_active():
-			garage.open()
+			if _menu:
+				_menu.open()
+			else:
+				garage.open()
 		if whats_new:
 			whats_new.show_if_new()
+		refresh_road_traffic()
 
 
 ## Behind the loading screen nothing else needs the CPU: build more terrain tiles at once and insert more per frame
@@ -192,6 +349,8 @@ func _update_loading() -> void:
 ## Dann kurz den Ladebildschirm zeigen, bis es da ist (sonst sähe man Löcher und den
 ## Horizont-Ring, und das Auto könnte durch den Boden fallen).
 func _check_for_jump() -> void:
+	if _city_mode:
+		return  # the city has no terrain tiles to wait for
 	var here := car.global_position
 	var jumped := here.distance_to(_last_car_position) > 50.0
 	_last_car_position = here

@@ -151,6 +151,12 @@ func _build() -> void:
 	_build_settings()
 
 
+## Is the second map loaded? The pause menu is built before game.gd runs its _ready,
+## so the command line has to be checked as well as the flag.
+func _city_loaded() -> bool:
+	return CityMode.enabled or OS.get_cmdline_user_args().has("--track=city")
+
+
 func _build_main() -> void:
 	_main = _glass_window(MAIN_SIZE)
 	var box := _window_box(_main, 36)
@@ -162,6 +168,7 @@ func _build_main() -> void:
 		close()
 		if garage:
 			garage.open()))
+	# The city map shows a picture of the city instead of the road network; chill mode needs roads
 	box.add_child(_big_button("Map", false, func() -> void:
 		close()
 		if big_map:
@@ -170,13 +177,22 @@ func _build_main() -> void:
 		close()
 		if photo_mode:
 			photo_mode.open()))
-	box.add_child(_big_button("Chill mode", false, func() -> void:
-		close()
-		if chill_mode:
-			chill_mode.start()))
-	box.add_child(_big_button("Osaka Nanko (track)", false, func() -> void:
-		close()
-		get_tree().change_scene_to_file("res://scenes/track_world.tscn")))
+	if not _city_loaded():
+		box.add_child(_big_button("Chill mode", false, func() -> void:
+			close()
+			if chill_mode:
+				chill_mode.start()))
+	# Second map: the scene reloads, with or without the procedural world
+	if _city_loaded():
+		box.add_child(_big_button("Endless world", false, func() -> void:
+			close()
+			CityMode.enabled = false
+			get_tree().change_scene_to_file("res://scenes/main.tscn")))
+	else:
+		box.add_child(_big_button("City Block", false, func() -> void:
+			close()
+			CityMode.enabled = true
+			get_tree().change_scene_to_file("res://scenes/main.tscn")))
 	box.add_child(_big_button("Settings", false, _show_settings))
 	_quit_button = _big_button("Quit game", false, func() -> void:
 		if _quit_armed:
@@ -301,8 +317,10 @@ func _fill_graphics() -> void:
 	_select_segment(_quality_buttons, GameSettings.QUALITY_NAMES.find(quality))
 	_quality_note = UiStyle.label("Custom setting" if quality == "eigene" else "", 13, "medium", UiStyle.TEXT_DIM)
 	holder.add_child(_quality_note)
-	_slider_row("Render resolution", "Share of pixels rendered, FSR 2 upscales", "grafik", "render_scale",
+	_slider_row("Render resolution", "Share of pixels rendered, upscaled to the window size", "grafik", "render_scale",
 		0.5, 1.0, 0.05, func(v: float) -> String: return "%d %%" % roundi(v * 100.0))
+	_choice_row("Upscaling", "Sharp has no motion smear; Temporal smooths edges but smears glass at speed",
+		"grafik", "hochskalierung", ["Sharp (FSR 1)", "Temporal (FSR 2)"], [1, 2])
 	_slider_row("View distance", "How far terrain is loaded in full detail", "grafik", "sichtweite",
 		1000.0, 3000.0, 100.0, func(v: float) -> String: return ("%.1f km" % (v / 1000.0)).replace(".", ","))
 	_choice_row("Shadows", "", "grafik", "schatten", ["Off", "Low", "Medium", "High"], [0, 1, 2, 3])
